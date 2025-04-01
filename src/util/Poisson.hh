@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020, 2022 PISM Authors
+/* Copyright (C) 2019, 2020, 2022, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -42,7 +42,7 @@ private:
                     array::Scalar &b);
 
   std::shared_ptr<const Grid> m_grid;
-  Logger::ConstPtr m_log;
+  std::shared_ptr<const Logger> m_log;
   std::shared_ptr<petsc::DM> m_da;         // dof=1 DA used by the KSP solver
   petsc::KSP m_KSP;
   petsc::Mat m_A;
