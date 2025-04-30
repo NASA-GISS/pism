@@ -256,6 +256,7 @@ pism_class(pism::Time, "pism/util/Time.hh")
 /* pism::Vars uses array::Array, so Array has to be wrapped first. */
 %include pism_Vars.i
 
+%include pism_Config.i
 
 %shared_ptr(pism::Diagnostic)
 %include "util/Diagnostic.hh"
