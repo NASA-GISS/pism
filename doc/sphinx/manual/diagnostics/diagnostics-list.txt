@@ -1187,17 +1187,17 @@ Scalar time-series
 #. ``surface_accumulation_rate``
 
    :Units: kg year^-1
-   :Description: surface accumulation rate (PDD model)
+   :Description: surface accumulation rate
 
 #. ``surface_melt_rate``
 
    :Units: kg year^-1
-   :Description: surface melt rate (PDD model)
+   :Description: surface melt rate
 
 #. ``surface_runoff_rate``
 
    :Units: kg year^-1
-   :Description: surface runoff rate (PDD model)
+   :Description: surface runoff rate
 
 #. ``tendency_of_ice_mass``
 
