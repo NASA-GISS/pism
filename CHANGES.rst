@@ -4,6 +4,28 @@
 Changes since v2.2.8
 ====================
 
+- Rename configuration parameters and command-line options related to reporting
+  diagnostics (see `issue 509`_)
+
+  Configuration parameters
+
+  - Everything with the prefix `output.extra.` -> `output.spatial.`
+  - Everything with the prefix `output.timeseries.` -> `output.scalar.`,
+    except `output.timeseries.filename` -> `output.scalar.file`
+  - `time_stepping.hit_extra_times` -> `time_stepping.hit_spatial_times`
+  - `time_stepping.hit_ts_times` -> `time_stepping.hit_scalar_times`
+  - `output.ISMIP6_extra_variables` -> `ISMIP6_spatial_variables`
+  - `output.ISMIP6_ts_variables` -> `output.ISMIP6_scalar_variables`
+
+  Command-line options:
+
+  - `-extra_(append|file|times|vars|stop_missing|split)` ->
+    `-spatial_(append|file|times|vars|stop_missing|split)`
+  - `-ts_(append|file|times|vars)` -> `-scalar_(append|file|times|vars)`
+  - `-extra_force_output_times` -> `-spatial_force_output_times`
+
+  Using an old command-line option will make PISM stop with an error message.
+
 - Implement asynchronous output to "snapshot" files and "extra" files (`-save_file ...`
   and `-extra_file ...`). Requires PISM built with YAC and Python packages `netCDF4`,
   `yac` (Python bindings for YAC), `mpi4py` and NumPy.
@@ -1102,6 +1124,7 @@ Miscellaneous
 .. _issue 529: https://github.com/pism/pism/issues/529
 .. _issue 568: https://github.com/pism/pism/issues/568
 .. _issue 569: https://github.com/pism/pism/issues/569
+.. _issue 509: https://github.com/pism/pism/issues/509
 .. _ocean models: http://www.pism.io/docs/climate_forcing/ocean.html
 .. _pull request 547: https://github.com/pism/pism/pull/547
 .. _YAC: https://dkrz-sw.gitlab-pages.dkrz.de/yac/index.html
