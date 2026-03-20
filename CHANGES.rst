@@ -5,7 +5,7 @@ Changes since v2.2.8
 ====================
 
 - Rename configuration parameters and command-line options related to reporting
-  diagnostics (see `issue 509`_)
+  diagnostics (see `issue 509`_).
 
   Configuration parameters
 
@@ -26,16 +26,15 @@ Changes since v2.2.8
 
   Using an old command-line option will make PISM stop with an error message.
 
-- Implement asynchronous output to "snapshot" files and "extra" files (`-save_file ...`
-  and `-extra_file ...`). Requires PISM built with YAC and Python packages `netCDF4`,
-  `yac` (Python bindings for YAC), `mpi4py` and NumPy.
-- Implemented a new more efficient algorithm for the solution of the Eikonal equation.
+- Implement asynchronous output to "snapshot" files and "spatial diagnostic" files
+  (`-save_file ...` and `-spatial_file ...`). Requires PISM built with YAC and Python
+  packages `netCDF4`, `yac` (Python bindings for YAC), `mpi4py` and NumPy.
+- Implemented a more efficient algorithm for the solution of the Eikonal equation in PICO.
 - Add the ability to read in inputs (e.g. climate forcing) on `longitude,latitude` grids,
   including rotated pole (`rlon,rlat`) grids.
 - Automatically build and upload Docker containers for each new PISM release to the GitHub
   Container Registry (uses Intel's oneAPI compilers and Intel MPI; see
   `ghcr.io/pism/pism`).
-- Optimization: avoid writing 2D and 3D NetCDF variables more than once.
 - Remove dependency on the Python package `nose` because it is old and unmaintained. Now
   we use Python's built-in `unittest` to set up Python-based regression tests.
 - Spatially-variable diagnostic `diffusivity`: at a grid point (`i,j`) report
@@ -46,7 +45,9 @@ Changes since v2.2.8
 - Add configuration parameter `output.experiment_id`: if set to a string, PISM adds an
   extra dimension (length 1) to output files. This makes it possible to open several
   output files (e.g. different ensemble members) at once using `xarray`'s
-  `xarray.open_mfdataset()`.
+  `xarray.open_mfdataset()`. (Note: this feature needs further testing to ensure that
+  PISM's way of doing this is compatible with other tools. Implementation details are
+  likely to change in the near future.)
 - Save the JSON string encoding PISM's configuration parameters to the `pism_config`
   variable in output files. This makes it easier to look up configuration parameter values
   in output files opened using `xarray.open_mfdataset()`.
