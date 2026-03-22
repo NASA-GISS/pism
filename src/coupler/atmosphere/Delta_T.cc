@@ -1,4 +1,4 @@
-// Copyright (C) 2011--2024 PISM Authors
+// Copyright (C) 2011--2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -18,10 +18,12 @@
 
 #include "pism/coupler/atmosphere/Delta_T.hh"
 
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/ScalarForcing.hh"
 #include "pism/coupler/util/options.hh"
 #include "pism/util/array/Forcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace atmosphere {
@@ -130,7 +132,7 @@ void Delta_T::update_impl(const Geometry &geometry, double t, double dt) {
 
     array::AccessScope list{&T, &delta};
 
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       T(i, j) += delta(i, j);

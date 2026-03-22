@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016 PISM Authors
+/* Copyright (C) 2015, 2016, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -41,9 +41,6 @@ class Logger {
 public:
   Logger(MPI_Comm com, int threshold);
   virtual ~Logger();
-
-  typedef std::shared_ptr<Logger> Ptr;
-  typedef std::shared_ptr<const Logger> ConstPtr;
 
   //! Print a message to the log.
   /** Does nothing if `threshold` is greater than the value provided to the constructor or set using
@@ -99,8 +96,6 @@ private:
   struct Impl;
   Impl *m_impl;
 };
-
-Logger::Ptr logger_from_options(MPI_Comm com);
 
 } // end of namespace pism
 

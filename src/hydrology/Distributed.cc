@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2019, 2021, 2022, 2023 PISM Authors
+// Copyright (C) 2012-2019, 2021, 2022, 2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -18,12 +18,15 @@
 
 #include <algorithm> // std::min, std::max
 
+#include "Routing.hh"
 #include "pism/geometry/Geometry.hh"
 #include "pism/hydrology/Distributed.hh"
 #include "pism/util/array/CellType.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/util/io/File.hh"
 #include "pism/util/pism_utilities.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace hydrology {
@@ -96,17 +99,16 @@ void Distributed::init_impl(const array::Scalar &W_till,
   m_P.copy_from(P);
 }
 
-void Distributed::define_model_state_impl(const File &output) const {
-  Routing::define_model_state_impl(output);
-  m_P.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> Distributed::state_impl() const {
+  return pism::combine(Routing::state_impl(), array::metadata({ &m_P }));
 }
 
-void Distributed::write_model_state_impl(const File &output) const {
-  Routing::write_model_state_impl(output);
+void Distributed::write_state_impl(const OutputFile &output) const {
+  Routing::write_state_impl(output);
   m_P.write(output);
 }
 
-std::map<std::string, TSDiagnostic::Ptr> Distributed::ts_diagnostics_impl() const {
+std::map<std::string, TSDiagnostic::Ptr> Distributed::scalar_diagnostics_impl() const {
   std::map<std::string, TSDiagnostic::Ptr> result = {
     // FIXME: add mass-conservation time-series diagnostics
   };
@@ -131,7 +133,7 @@ void Distributed::check_P_bounds(array::Scalar &P,
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       if (P(i,j) < 0.0) {
@@ -183,7 +185,7 @@ void Distributed::P_from_W_steady(const array::Scalar &W,
 
   array::AccessScope list{&W, &P_overburden, &sliding_speed, &result};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double sb = pow(CC * sliding_speed(i, j), 1.0 / Glen_exponent);
@@ -243,7 +245,7 @@ void Distributed::update_P(double dt,
                                &K, &Q, &surface_input_rate, &basal_melt_rate,
                                &cell_type, &P_overburden, &P_new};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     auto w = W.star(i, j);

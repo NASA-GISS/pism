@@ -1,4 +1,4 @@
-// Copyright (C) 2010--2018, 2021, 2022, 2023, 2024 Ed Bueler, Constantine Khroulev, and David Maxwell
+// Copyright (C) 2010--2018, 2021, 2022, 2023, 2024, 2025 Ed Bueler, Constantine Khroulev, and David Maxwell
 //
 // This file is part of PISM.
 //
@@ -17,6 +17,8 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <memory>
+#include <petsc.h>
+
 static char help[] =
   "\nSSA_TESTI\n"
   "  Testing program for the finite element implementation of the SSA.\n"
@@ -24,9 +26,7 @@ static char help[] =
   "  class thereof. Uses verification test I. Also may be used in a PISM\n"
   "  software (regression) test.\n\n";
 
-#include "pism/stressbalance/ssa/SSAFD.hh"
-#include "pism/stressbalance/ssa/SSAFEM.hh"
-#include "pism/stressbalance/ssa/SSATestCase.hh"
+#include "pism/stressbalance/ssa/tests/SSATestCase.hh"
 #include "pism/util/Context.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/util/petscwrappers/PetscInitializer.hh"
@@ -73,7 +73,7 @@ void SSATestCaseI::initializeSSACoefficients() {
 
   array::AccessScope list{&m_tauc, &m_bc_values, &m_bc_mask, &m_geometry.ice_surface_elevation, &m_geometry.bed_elevation};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     // Evaluate the exact solution and yield stress. Exact u, v will only be used at the
@@ -122,14 +122,14 @@ int main(int argc, char *argv[]) {
   /* This explicit scoping forces destructors to be called before PetscFinalize() */
   try {
     std::shared_ptr<Context> ctx = context_from_options(com, "ssa_testi");
-    Config::Ptr config = ctx->config();
+    auto config = ctx->config();
 
     std::string usage = "\n"
       "usage of SSA_TESTi:\n"
       "  run ssa_testi -Mx <number> -My <number> -ssa_method <fd|fem>\n"
       "\n";
 
-    bool stop = show_usage_check_req_opts(*ctx->log(), "ssa_testi", {}, usage);
+    bool stop = maybe_show_usage(*ctx->log(), "ssa_testi", usage);
 
     if (stop) {
       return 0;

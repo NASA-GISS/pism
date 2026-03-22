@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2023 PISM Authors
+// Copyright (C) 2012-2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -52,7 +52,7 @@ public:
   till_water_thickness()
   \endcode
   These correspond to state variables \f$W\f$, \f$P\f$, and \f$W_{\text{till}}\f$
-  in [\ref BuelervanPeltDRAFT], though not all derived classes of Hydrology
+  in [\ref BuelervanPelt2015], though not all derived classes of Hydrology
   have all of them as state variables.
 
   Additional modeled fields, for diagnostic purposes, are
@@ -147,10 +147,10 @@ protected:
                                const array::Scalar &P);
 
   virtual void update_impl(double t, double dt, const Inputs& inputs) = 0;
-  virtual std::map<std::string, Diagnostic::Ptr> diagnostics_impl() const;
+  virtual std::map<std::string, Diagnostic::Ptr> spatial_diagnostics_impl() const;
 
-  virtual void define_model_state_impl(const File &output) const;
-  virtual void write_model_state_impl(const File &output) const;
+  virtual std::set<VariableMetadata> state_impl() const;
+  virtual void write_state_impl(const OutputFile &output) const;
 
   void compute_overburden_pressure(const array::Scalar &ice_thickness,
                                    array::Scalar &result) const;

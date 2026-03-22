@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2018, 2020, 2021, 2022 Jed Brown, Ed Bueler, and Constantine Khroulev
+// Copyright (C) 2004-2018, 2020, 2021, 2022, 2025 Jed Brown, Ed Bueler, and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -76,8 +76,8 @@ namespace rheology {
 */
 class FlowLaw {
 public:
-  FlowLaw(const std::string &prefix, const Config &config,
-          EnthalpyConverter::Ptr EC);
+  FlowLaw(double exponent, const Config &config,
+          std::shared_ptr<EnthalpyConverter> EC);
   virtual ~FlowLaw() = default;
 
   void effective_viscosity(double hardness, double gamma,
@@ -89,7 +89,7 @@ public:
   std::string name() const;
   double exponent() const;
 
-  EnthalpyConverter::Ptr EC() const;
+  std::shared_ptr<EnthalpyConverter> EC() const;
 
   double hardness(double E, double p) const;
   void hardness_n(const double *enthalpy, const double *pressure,
@@ -116,14 +116,12 @@ protected:
 protected:
   std::string m_name;
 
-  //! ice density
-  double m_rho;
+  //! ice density times acceleration due to gravity
+  double m_rho_g;
   //! Clausius-Clapeyron gradient
   double m_beta_CC_grad;
-  //! melting point temperature (for water, 273.15 K)
-  double m_melting_point_temp;
 
-  EnthalpyConverter::Ptr m_EC;
+  std::shared_ptr<EnthalpyConverter> m_EC;
 
   double softness_paterson_budd(double T_pa) const;
 
@@ -146,8 +144,6 @@ protected:
   //! critical temperature (cold -- warm transition)
   double m_crit_temp;
 
-  //! acceleration due to gravity
-  double m_standard_gravity;
   //! ideal gas constant
   double m_ideal_gas_constant;
   //! power law exponent

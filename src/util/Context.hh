@@ -1,4 +1,4 @@
-/* Copyright (C) 2014, 2015, 2016, 2019, 2020, 2021, 2023, 2024 PISM Authors
+/* Copyright (C) 2014, 2015, 2016, 2019, 2020, 2021, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -68,10 +68,12 @@ private:
   Context & operator=(const Context &);
 };
 
+std::shared_ptr<Context> context_from_config(MPI_Comm com,
+                                             std::shared_ptr<Config> config,
+                                             const std::string &prefix);
+
 //! Create a default context using options.
-std::shared_ptr<Context> context_from_options(MPI_Comm com,
-                                              const std::string &prefix,
-                                              bool print = false);
+std::shared_ptr<Context> context_from_options(MPI_Comm com, const std::string &prefix);
 
 } // end of namespace pism
 

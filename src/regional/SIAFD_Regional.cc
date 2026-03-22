@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016, 2017, 2019, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2015, 2016, 2017, 2019, 2022, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -20,6 +20,7 @@
 #include "pism/regional/SIAFD_Regional.hh"
 #include "pism/stressbalance/StressBalance.hh"
 #include "pism/geometry/Geometry.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 
@@ -61,7 +62,7 @@ void SIAFD_Regional::compute_surface_gradient(const Inputs &inputs,
 
   array::AccessScope list{&h_x, &h_y, &no_model, &m_h_x_no_model, &m_h_y_no_model};
 
-  for (auto p = m_grid->points(1); p; p.next()) {
+  for (auto p : m_grid->points_with_ghosts(1)) {
     const int i = p.i(), j = p.j();
 
     auto M = no_model.box(i, j);

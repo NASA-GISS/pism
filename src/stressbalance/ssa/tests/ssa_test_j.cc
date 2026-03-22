@@ -1,4 +1,4 @@
-// Copyright (C) 2010--2018, 2021, 2022, 2024 Ed Bueler, Constantine Khroulev, and David Maxwell
+// Copyright (C) 2010--2018, 2021, 2022, 2024, 2025 Ed Bueler, Constantine Khroulev, and David Maxwell
 //
 // This file is part of PISM.
 //
@@ -25,7 +25,7 @@ static char help[] =
 
 #include <petscsys.h>
 
-#include "pism/stressbalance/ssa/SSATestCase.hh"
+#include "pism/stressbalance/ssa/tests/SSATestCase.hh"
 #include "pism/util/Mask.hh"
 #include "pism/util/Context.hh"
 #include "pism/util/error_handling.hh"
@@ -76,7 +76,7 @@ void SSATestCaseJ::initializeSSACoefficients() {
 
   array::AccessScope list{&m_geometry.ice_thickness, &m_geometry.ice_surface_elevation, &m_bc_mask, &m_bc_values};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     const double myx = m_grid->x(i), myy = m_grid->y(j);
@@ -128,14 +128,14 @@ int main(int argc, char *argv[]) {
   /* This explicit scoping forces destructors to be called before PetscFinalize() */
   try {
     std::shared_ptr<Context> ctx = context_from_options(com, "ssa_testj");
-    Config::Ptr config = ctx->config();
+    auto config = ctx->config();
 
     std::string usage = "\n"
       "usage of SSA_TESTJ:\n"
       "  run ssafe_test -Mx <number> -My <number> -ssa_method <fd|fem>\n"
       "\n";
 
-    bool stop = show_usage_check_req_opts(*ctx->log(), "ssa_testj", {}, usage);
+    bool stop = maybe_show_usage(*ctx->log(), "ssa_testj", usage);
 
     if (stop) {
       return 0;

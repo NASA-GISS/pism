@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2023 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -25,6 +25,7 @@
 #include "pism/util/EnthalpyConverter.hh"
 #include "pism/util/array/CellType.hh"
 #include "pism/util/io/File.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace energy {
@@ -117,7 +118,7 @@ void CHSystem::update_impl(double t, double dt, const Inputs &inputs) {
   // current time does not matter here
   (void) t;
 
-  EnthalpyConverter::Ptr EC = m_grid->ctx()->enthalpy_converter();
+  auto EC = m_grid->ctx()->enthalpy_converter();
 
   inputs.check();
 
@@ -156,12 +157,12 @@ void CHSystem::update_impl(double t, double dt, const Inputs &inputs) {
     T_pm = m_config->get_number("constants.fresh_water.melting_point_temperature"),
     residual_water_fraction = m_config->get_number("energy.ch_warming.residual_water_fraction");
 
-  const std::vector<double> &z = m_grid->z();
-  const unsigned int Mz = m_grid->Mz();
+  const std::vector<double> &z = m_ice_enthalpy.levels();
+  const unsigned int Mz = z.size();
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto pt = m_grid->points(); pt; pt.next()) {
+    for (auto pt : m_grid->points()) {
       const int i = pt.i(), j = pt.j();
 
       const double H = ice_thickness(i, j);
@@ -232,11 +233,11 @@ void CHSystem::update_impl(double t, double dt, const Inputs &inputs) {
   loop.check();
 }
 
-void CHSystem::define_model_state_impl(const File &output) const {
-  m_ice_enthalpy.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> CHSystem::state_impl() const {
+  return array::metadata({ &m_ice_enthalpy });
 }
 
-void CHSystem::write_model_state_impl(const File &output) const {
+void CHSystem::write_state_impl(const OutputFile &output) const {
   m_ice_enthalpy.write(output);
 }
 
@@ -257,8 +258,8 @@ void cryo_hydrologic_warming_flux(double k,
 
   auto grid = result.grid();
 
-  const auto &z = grid->z();
-  auto Mz = grid->Mz();
+  const auto &z = ice_enthalpy.levels();
+  auto Mz       = z.size();
 
   auto EC = grid->ctx()->enthalpy_converter();
 
@@ -268,7 +269,7 @@ void cryo_hydrologic_warming_flux(double k,
 
   ParallelSection loop(grid->com);
   try {
-    for (auto p = grid->points(); p; p.next()) {
+    for (auto p : grid->points()) {
       const int i = p.i(), j = p.j();
 
       const double
@@ -295,7 +296,7 @@ void cryo_hydrologic_warming_flux(double k,
   loop.check();
 }
 
-DiagnosticList CHSystem::diagnostics_impl() const {
+DiagnosticList CHSystem::spatial_diagnostics_impl() const {
   return {{"ch_enthalpy", Diagnostic::wrap(m_ice_enthalpy)}};
 }
 

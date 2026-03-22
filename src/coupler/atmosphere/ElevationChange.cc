@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -22,9 +22,10 @@
 
 #include "pism/coupler/util/options.hh"
 #include "pism/coupler/util/lapse_rates.hh"
-#include "pism/util/io/io_helpers.hh"
 #include "pism/geometry/Geometry.hh"
 #include "pism/util/array/Forcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace atmosphere {
@@ -131,7 +132,7 @@ void ElevationChange::update_impl(const Geometry &geometry, double t, double dt)
       {
         array::AccessScope list{&m_surface, &reference_surface, m_precipitation.get()};
 
-        for (auto p = m_grid->points(); p; p.next()) {
+        for (auto p : m_grid->points()) {
           const int i = p.i(), j = p.j();
 
           double dT = -m_precip_temp_lapse_rate * (m_surface(i, j) - reference_surface(i, j));

@@ -1,4 +1,4 @@
-// Copyright (C) 2012,2013,2014,2015,2016,2017,2020,2022,2023  David Maxwell and Constantine Khroulev
+// Copyright (C) 2012,2013,2014,2015,2016,2017,2020,2022,2023,2025  David Maxwell and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -23,7 +23,7 @@
 
 #include "pism/inverse/TaoUtil.hh"
 #include "pism/inverse/functional/IPFunctional.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Context.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/Logger.hh"
@@ -415,7 +415,7 @@ void IPTaoTikhonovProblem<ForwardProblem>::evaluateObjectiveAndGradient(Tao tao,
 
   auto reason = m_forward.linearize_at(*m_d);
   if (reason->failed()) {
-    Logger::ConstPtr log = m_grid->ctx()->log();
+    auto log = m_grid->ctx()->log();
     log->message(2,
                  "IPTaoTikhonovProblem::evaluateObjectiveAndGradient"
                  " failure in forward solve\n%s\n", reason->description().c_str());

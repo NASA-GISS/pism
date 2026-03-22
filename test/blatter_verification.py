@@ -33,8 +33,7 @@ config.set_number("stress_balance.blatter.Glen_exponent", 3.0)
 config.set_number("constants.ice.density", 910.0)
 config.set_number("constants.standard_gravity", 9.81)
 
-config_clean = PISM.DefaultConfig(ctx.com, "pism_config", "-config", ctx.unit_system)
-config_clean.init_with_default(ctx.log)
+config_clean = PISM.config_from_options(ctx.com, ctx.unit_system)
 config_clean.import_from(config)
 
 def expt(ns, errors):

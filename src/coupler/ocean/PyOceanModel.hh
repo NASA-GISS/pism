@@ -1,4 +1,4 @@
-// Copyright (C) 2023 PISM Authors
+// Copyright (C) 2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -57,17 +57,17 @@ public:
    *
    * Assumes that the time step length `dt` is allowed at the time `t`.
    */
-  virtual void update(const Geometry &geometry, double t, double dt);
+  virtual void update(const Inputs &inputs, double t, double dt);
 
   /*!
-   * Define model state variables and set their attributes
+   * Return information about model state variables and their attributes
    */
-  virtual void define_model_state(const File &output) const;
+  virtual std::set<VariableMetadata> state() const;
 
   /*!
    * Write model state variables and set their attributes
    */
-  virtual void write_model_state(const File &output) const;
+  virtual void write_state(const OutputFile &output) const;
 };
 
 //! The adapter class for Python ocean models
@@ -83,11 +83,11 @@ public:
 
 private:
   MaxTimestep max_timestep_impl(double t) const;
-  void update_impl(const Geometry &geometry, double my_t, double my_dt);
+  void update_impl(const Inputs &inputs, double my_t, double my_dt);
   void init_impl(const Geometry &geometry);
 
-  void define_model_state_impl(const File &output) const;
-  void write_model_state_impl(const File &output) const;
+  std::set<VariableMetadata> state_impl() const;
+  void write_state_impl(const OutputFile &output) const;
 
   std::shared_ptr<PyOceanModel> m_impl;
 };

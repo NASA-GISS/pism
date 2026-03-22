@@ -1,4 +1,4 @@
-/* Copyright (C) 2018, 2021, 2022, 2023 PISM Authors
+/* Copyright (C) 2018, 2021, 2022, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -22,15 +22,17 @@
 #include "pism/rheology/FlowLawFactory.hh"
 #include "pism/geometry/Geometry.hh"
 #include "pism/stressbalance/StressBalance.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace stressbalance {
 
 WeertmanSliding::WeertmanSliding(std::shared_ptr<const Grid> grid)
   : ShallowStressBalance(grid) {
+  rheology::FlowLawFactory ice_factory(m_config, m_EC);
   // Use the SIA flow law.
-  rheology::FlowLawFactory ice_factory("stress_balance.sia.", m_config, m_EC);
-  m_flow_law = ice_factory.create();
+  m_flow_law = ice_factory.create(m_config->get_string("stress_balance.sia.flow_law"),
+                                  m_config->get_number("stress_balance.sia.Glen_exponent"));
 }
 
 void WeertmanSliding::init_impl() {
@@ -88,7 +90,7 @@ void WeertmanSliding::update(const Inputs &inputs, bool full_update) {
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       double

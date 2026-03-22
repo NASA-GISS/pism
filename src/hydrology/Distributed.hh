@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2019, 2021, 2022 PISM Authors
+// Copyright (C) 2012-2019, 2021, 2022, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -27,7 +27,7 @@ namespace hydrology {
 
 //! \brief The PISM subglacial hydrology model for a distributed linked-cavity system.
 /*!
-  This class implements the model documented in [\ref BuelervanPeltDRAFT].
+  This class implements the model documented in [\ref BuelervanPelt2015].
 
   Unlike hydrology::Routing, the water pressure \f$P\f$ is a state variable, and there
   are modeled mechanisms for cavity geometry evolution, including creep closure
@@ -61,10 +61,10 @@ protected:
 
   void update_impl(double t, double dt, const Inputs& inputs);
 
-  std::map<std::string, TSDiagnostic::Ptr> ts_diagnostics_impl() const;
+  std::map<std::string, TSDiagnostic::Ptr> scalar_diagnostics_impl() const;
 
-  void define_model_state_impl(const File &output) const;
-  void write_model_state_impl(const File &output) const;
+  virtual std::set<VariableMetadata> state_impl() const;
+  void write_state_impl(const OutputFile &output) const;
 
   void check_P_bounds(array::Scalar &P,
                       const array::Scalar &P_o,

@@ -1,4 +1,4 @@
-/* Copyright (C) 2024 PISM Authors
+/* Copyright (C) 2024, 2025, 2026 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -31,8 +31,11 @@
 #include "pism/util/pism_utilities.hh"
 #include "pism/util/projection.hh"
 #include "pism/util/Logger.hh"
+#include "pism/util/Config.hh"
+#include <string>
+#include <vector>
 
-#if (Pism_USE_YAC_INTERPOLATION == 1)
+#if (Pism_USE_YAC == 1)
 #include "InputInterpolationYAC.hh"
 #endif
 
@@ -40,7 +43,7 @@
 
 namespace pism {
 
-double InputInterpolation::regrid(const SpatialVariableMetadata &metadata, const pism::File &file,
+double InputInterpolation::regrid(const VariableMetadata &metadata, const pism::File &file,
                                   int record_index, const Grid &grid, petsc::Vec &output) const {
   if (record_index == -1) {
     auto nrecords =
@@ -75,13 +78,14 @@ InputInterpolation3D::InputInterpolation3D(const Grid &target_grid,
 
   input_grid.report(*log, 4, unit_system);
 
-  io::check_input_grid(input_grid, target_grid, levels);
+  bool allow_extrapolation = target_grid.ctx()->config()->get_flag("grid.allow_extrapolation");
+  io::check_input_grid(input_grid, target_grid.info(), levels, allow_extrapolation);
 
-  m_interp_context = std::make_shared<LocalInterpCtx>(input_grid, target_grid, levels, type);
+  m_interp_context = std::make_shared<LocalInterpCtx>(input_grid, target_grid.info(), levels, type);
 }
 
 
-double InputInterpolation3D::regrid_impl(const SpatialVariableMetadata &metadata,
+double InputInterpolation3D::regrid_impl(const VariableMetadata &metadata,
                                          const pism::File &file,
                                          int record_index,
                                          const Grid &target_grid,
@@ -95,6 +99,7 @@ double InputInterpolation3D::regrid_impl(const SpatialVariableMetadata &metadata
     context.start[T_AXIS] = record_index;
 
     io::regrid_spatial_variable(metadata, target_grid, context, file,
+                                *target_grid.ctx()->log(),
                                 output_array.get());
   }
   double end = get_time(target_grid.com);
@@ -108,13 +113,12 @@ InputInterpolation::create(const Grid &target_grid,
                            const std::vector<double> &levels, const File &input_file,
                            const std::string &variable_name, InterpolationType type) {
 
-#if (Pism_USE_YAC_INTERPOLATION == 1)
+#if (Pism_USE_YAC == 1)
   {
-    auto source_projection =
-        MappingInfo::FromFile(input_file, variable_name, target_grid.ctx()->unit_system())
-            .proj_string;
+    std::string source_projection = mapping_info_from_file(
+        input_file, variable_name, target_grid.ctx()->unit_system())["proj_params"];
 
-    auto target_projection = target_grid.get_mapping_info().proj_string;
+    std::string target_projection = target_grid.get_mapping_info()["proj_params"];
 
     bool use_yac =
         (levels.size() < 2 and (not source_projection.empty()) and (not target_projection.empty()));
@@ -153,8 +157,9 @@ InputInterpolation::create(const Grid &target_grid,
   }
 #endif
 
-  return std::make_shared<InputInterpolation3D>(target_grid, levels, input_file, variable_name,
-                                                type);
+  std::vector<double> fake_levels = { 0.0 };
+  return std::make_shared<InputInterpolation3D>(target_grid, levels.empty() ? fake_levels : levels,
+                                                input_file, variable_name, type);
 }
 
 

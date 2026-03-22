@@ -1,4 +1,4 @@
-/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025 PISM Authors
+/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025, 2026 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -86,8 +86,8 @@ void OceanModel::init_impl(const Geometry &geometry) {
   }
 }
 
-void OceanModel::update(const Geometry &geometry, double t, double dt) {
-  this->update_impl(geometry, t, dt);
+void OceanModel::update(const Inputs &inputs, double t, double dt) {
+  this->update_impl(inputs, t, dt);
 }
 
 const array::Scalar &OceanModel::shelf_base_mass_flux() const {
@@ -104,9 +104,9 @@ const array::Scalar &OceanModel::average_water_column_pressure() const {
 
 // pass-through default implementations for "modifiers"
 
-void OceanModel::update_impl(const Geometry &geometry, double t, double dt) {
+void OceanModel::update_impl(const Inputs &inputs, double t, double dt) {
   if (m_input_model) {
-    m_input_model->update(geometry, t, dt);
+    m_input_model->update(inputs, t, dt);
   } else {
     throw RuntimeError::formatted(PISM_ERROR_LOCATION, "no input model");
   }
@@ -119,16 +119,16 @@ MaxTimestep OceanModel::max_timestep_impl(double t) const {
   throw RuntimeError::formatted(PISM_ERROR_LOCATION, "no input model");
 }
 
-void OceanModel::define_model_state_impl(const File &output) const {
+std::set<VariableMetadata> OceanModel::state_impl() const {
   if (m_input_model) {
-    return m_input_model->define_model_state(output);
+    return m_input_model->state();
   }
-  // no state to define
+  return {};
 }
 
-void OceanModel::write_model_state_impl(const File &output) const {
+void OceanModel::write_state_impl(const OutputFile &output) const {
   if (m_input_model) {
-    return m_input_model->write_model_state(output);
+    return m_input_model->write_state(output);
   }
   // no state to write
 }
@@ -160,7 +160,7 @@ namespace diagnostics {
 class PO_shelf_base_temperature : public Diag<OceanModel> {
 public:
   PO_shelf_base_temperature(const OceanModel *m) : Diag<OceanModel>(m) {
-    m_vars = { { m_sys, "shelfbtemp" } };
+    m_vars = { { m_sys, "shelfbtemp", *m_grid } };
     m_vars[0].long_name("ice temperature at the basal surface of ice shelves").units("kelvin");
   }
 
@@ -179,7 +179,7 @@ protected:
 class PO_shelf_base_mass_flux : public Diag<OceanModel> {
 public:
   PO_shelf_base_mass_flux(const OceanModel *m) : Diag<OceanModel>(m) {
-    m_vars = { { m_sys, "shelfbmassflux" } };
+    m_vars = { { m_sys, "shelfbmassflux", *m_grid } };
     m_vars[0].long_name("mass flux at the basal surface of ice shelves").units("kg m^-2 s^-1");
   }
 
@@ -195,21 +195,21 @@ protected:
 
 } // end of namespace diagnostics
 
-DiagnosticList OceanModel::diagnostics_impl() const {
+DiagnosticList OceanModel::spatial_diagnostics_impl() const {
   using namespace diagnostics;
   DiagnosticList result = { { "shelfbtemp", Diagnostic::Ptr(new PO_shelf_base_temperature(this)) },
                             { "shelfbmassflux",
                               Diagnostic::Ptr(new PO_shelf_base_mass_flux(this)) } };
 
   if (m_input_model) {
-    return combine(m_input_model->diagnostics(), result);
+    return combine(m_input_model->spatial_diagnostics(), result);
   }
   return result;
 }
 
-TSDiagnosticList OceanModel::ts_diagnostics_impl() const {
+TSDiagnosticList OceanModel::scalar_diagnostics_impl() const {
   if (m_input_model) {
-    return m_input_model->ts_diagnostics();
+    return m_input_model->scalar_diagnostics();
   }
   return {};
 }
@@ -227,7 +227,7 @@ void compute_average_water_column_pressure(const Geometry &geometry, double ice_
 
   ParallelSection loop(grid->com);
   try {
-    for (auto p = grid->points(); p; p.next()) {
+    for (auto p : grid->points()) {
       const int i = p.i(), j = p.j();
 
       result(i, j) = pism::average_water_column_pressure(H(i, j), bed(i, j), z_s(i, j), ice_density,

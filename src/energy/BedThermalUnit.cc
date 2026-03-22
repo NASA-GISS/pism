@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2023, 2024 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2023, 2024, 2025 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -19,12 +19,15 @@
 #include <memory>
 
 #include "pism/energy/BedThermalUnit.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/io/File.hh"
 
 #include "pism/energy/BTU_Full.hh"
 #include "pism/energy/BTU_Minimal.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/pism_utilities.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace energy {
@@ -38,7 +41,7 @@ BTUGrid::BTUGrid(std::shared_ptr<const Context> ctx) {
 BTUGrid BTUGrid::FromOptions(std::shared_ptr<const Context> ctx) {
   BTUGrid result(ctx);
 
-  Config::ConstPtr config = ctx->config();
+  auto config = ctx->config();
   InputOptions opts = process_input_options(ctx->com(), config);
 
   if (opts.type == INIT_RESTART) {
@@ -51,7 +54,7 @@ BTUGrid BTUGrid::FromOptions(std::shared_ptr<const Context> ctx) {
                                grid::CELL_CENTER); // grid registration is irrelevant
 
       result.Mbz = info.z.size();
-      result.Lbz = -info.z_min;
+      result.Lbz = -vector_min(info.z);
     } else {
       // override values we got using config.get_number() in the constructor
       result.Mbz = 1;
@@ -107,7 +110,7 @@ BedThermalUnit::BedThermalUnit(std::shared_ptr<const Grid> g)
     m_bottom_surface_flux.metadata(0)
         .long_name("upward geothermal flux at the bottom bedrock surface")
         .units("W m^-2") // note: don't convert to "mW m^-2" when saving
-        .set_time_independent(true);
+        .set_time_dependent(false);
 
     m_bottom_surface_flux.metadata()["comment"] = "positive values correspond to an upward flux";
   }
@@ -179,15 +182,15 @@ unsigned int BedThermalUnit::Mz() const {
   return this->Mz_impl();
 }
 
-void BedThermalUnit::define_model_state_impl(const File &output) const {
-  m_bottom_surface_flux.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> BedThermalUnit::state_impl() const {
+  return array::metadata({ &m_bottom_surface_flux });
 }
 
-void BedThermalUnit::write_model_state_impl(const File &output) const {
+void BedThermalUnit::write_state_impl(const OutputFile &output) const {
   m_bottom_surface_flux.write(output);
 }
 
-DiagnosticList BedThermalUnit::diagnostics_impl() const {
+DiagnosticList BedThermalUnit::spatial_diagnostics_impl() const {
   DiagnosticList result = {
     {"bheatflx",   Diagnostic::wrap(m_bottom_surface_flux)},
     {"heat_flux_from_bedrock", Diagnostic::Ptr(new BTU_geothermal_flux_at_ground_level(this))}};
@@ -215,7 +218,7 @@ BTU_geothermal_flux_at_ground_level::BTU_geothermal_flux_at_ground_level(const B
     : Diag<BedThermalUnit>(m) {
 
   auto ismip6 = m_config->get_flag("output.ISMIP6");
-  m_vars      = { { m_sys, ismip6 ? "hfgeoubed" : "heat_flux_from_bedrock" } };
+  m_vars      = { { m_sys, ismip6 ? "hfgeoubed" : "heat_flux_from_bedrock", *m_grid } };
   m_vars[0]
       .long_name("upward geothermal flux at the top bedrock surface")
       .standard_name((ismip6 ? "upward_geothermal_heat_flux_in_land_ice" :

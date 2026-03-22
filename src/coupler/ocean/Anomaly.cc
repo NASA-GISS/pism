@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -20,6 +20,8 @@
 #include "pism/util/Grid.hh"
 #include "pism/coupler/util/options.hh"
 #include "pism/util/array/Forcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace ocean {
@@ -69,8 +71,8 @@ void Anomaly::init_impl(const Geometry &geometry) {
   m_shelf_base_mass_flux_anomaly->init(opt.filename, opt.periodic);
 }
 
-void Anomaly::update_impl(const Geometry &geometry, double t, double dt) {
-  m_input_model->update(geometry, t, dt);
+void Anomaly::update_impl(const Inputs &inputs, double t, double dt) {
+  m_input_model->update(inputs, t, dt);
 
   m_shelf_base_mass_flux_anomaly->update(t, dt);
 

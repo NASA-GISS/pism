@@ -21,7 +21,7 @@
 
 .. substitutions
 
-.. |petsc-min-version| replace:: 3.11
+.. |petsc-min-version| replace:: 3.15
 
 .. |pism-email| replace:: uaf-pism@alaska.edu
 .. |pism-website| replace:: https://www.pism.io
@@ -50,6 +50,7 @@
 .. _Bash: https://www.gnu.org/software/bash/
 .. _CalCalcs: https://cirrus.ucsd.edu/~pierce/calcalcs/calendars.html
 .. _CalCalcs-home: https://cirrus.ucsd.edu/~pierce/calcalcs/index.html
+.. _nlohmann-json: https://json.nlohmann.me/
 .. _CDO: https://code.mpimet.mpg.de/projects/cdo
 .. _pkg-config: https://www.freedesktop.org/wiki/Software/pkg-config/
 .. _CMake: https://cmake.org/
@@ -66,6 +67,7 @@
 .. _LaTeX: https://www.latex-project.org/
 .. _latexmk: https://www.cantab.net/users/johncollins/latexmk/
 .. _MPI: https://www.mcs.anl.gov/research/projects/mpi/
+.. _mpi4py: https://mpi4py.readthedocs.io/en/stable/
 .. _MacPorts: https://www.macports.org/
 .. _measures-ross: https://nsidc.org/data/nsidc-0484/versions/2
 .. _NSIDC: https://nsidc.org/home
@@ -123,6 +125,7 @@
 .. _MPICH: https://www.mpich.org/
 .. _Spack: https://spack.io/
 .. _Spack documentation: https://spack.readthedocs.io/en/latest/
+.. _Spack PISM package: https://packages.spack.io/package.html?name=pism
 .. _KDevelop: https://kdevelop.org/
 .. _Kaye and Laby: https://web.archive.org/web/20190506031327/http://www.kayelaby.npl.co.uk/
 
@@ -135,7 +138,7 @@
 
 .. _YAXT: https://dkrz-sw.gitlab-pages.dkrz.de/yaxt/
 .. _YAC: https://dkrz-sw.gitlab-pages.dkrz.de/yac/
-.. _libyaml: https://pyyaml.org/wiki/LibYAML
+.. _libfyaml: https://github.com/pantoniou/libfyaml
 .. _Autoconf: https://www.gnu.org/software/autoconf/
 .. _Automake: https://www.gnu.org/software/automake/
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2008--2024 Ed Bueler, Constantine Khroulev, and David Maxwell
+// Copyright (C) 2008--2026 Ed Bueler, Constantine Khroulev, and David Maxwell
 //
 // This file is part of PISM.
 //
@@ -28,7 +28,7 @@
 #include "pism/util/array/Array.hh"
 #include "pism/util/array/Array_impl.hh"
 
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/Time.hh"
 
@@ -41,10 +41,13 @@
 #include "pism/util/io/IO_Flags.hh"
 #include "pism/util/io/io_helpers.hh"
 #include "pism/util/petscwrappers/VecScatter.hh"
+#include "pism/util/petscwrappers/DM.hh"
 #include "pism/util/petscwrappers/Viewer.hh"
 #include "pism/util/pism_utilities.hh"
 
 #include "pism/util/InputInterpolation.hh"
+#include "pism/util/io/OutputWriter.hh"
+#include "pism/util/io/SynchronousOutputWriter.hh"
 
 namespace pism {
 
@@ -86,11 +89,11 @@ Array::Array(std::shared_ptr<const Grid> grid, const std::string &name, Kind gho
   if (m_impl->dof > 1) {
     // dof > 1: this is a 2D vector
     for (unsigned int j = 0; j < m_impl->dof; ++j) {
-      m_impl->metadata.push_back({ system, pism::printf("%s[%d]", name.c_str(), j) });
+      m_impl->metadata.push_back({ system, pism::printf("%s[%d]", name.c_str(), j), *grid });
     }
   } else {
     // both 2D and 3D vectors
-    m_impl->metadata = { { system, name, zlevels } };
+    m_impl->metadata = { { system, name, *grid, zlevels } };
   }
 
   if (zlevels.size() > 1) {
@@ -153,7 +156,7 @@ void Array::inc_state_counter() {
 
 //! Returns the number of spatial dimensions.
 unsigned int Array::ndims() const {
-  return m_impl->zlevels.size() > 1 ? 3 : 2;
+  return levels().empty() ? 2 : 3;
 }
 
 std::vector<int> Array::shape() const {
@@ -237,10 +240,10 @@ void Array::scale(double alpha) {
  */
 void Array::copy_to_vec(std::shared_ptr<petsc::DM> destination_da, petsc::Vec &destination) const {
   // m_dof > 1 for vector, staggered grid 2D fields, etc. In this case
-  // zlevels.size() == 1. For 3D fields, m_dof == 1 (all 3D fields are
+  // zlevels.size() == 0. For 3D fields, m_dof == 1 (all 3D fields are
   // scalar) and zlevels.size() corresponds to dof of the underlying PETSc
   // DM object. So we want the bigger of the two numbers here.
-  unsigned int N = std::max((size_t)m_impl->dof, m_impl->zlevels.size());
+  unsigned int N = std::max((size_t)ndof(), levels().size());
 
   this->get_dof(destination_da, destination, 0, N);
 }
@@ -258,7 +261,7 @@ void Array::get_dof(std::shared_ptr<petsc::DM> da_result, petsc::Vec &result, un
 
   ParallelSection loop(m_impl->grid->com);
   try {
-    for (auto p = m_impl->grid->points(); p; p.next()) {
+    for (auto p : m_impl->grid->points()) {
       const int i = p.i(), j = p.j();
       PetscErrorCode ierr =
           PetscMemcpy(result_a[j][i], &source_a[j][i][start], count * sizeof(PetscScalar));
@@ -283,7 +286,7 @@ void Array::set_dof(std::shared_ptr<petsc::DM> da_source, petsc::Vec &source, un
 
   ParallelSection loop(m_impl->grid->com);
   try {
-    for (auto p = m_impl->grid->points(); p; p.next()) {
+    for (auto p : m_impl->grid->points()) {
       const int i = p.i(), j = p.j();
       PetscErrorCode ierr =
           PetscMemcpy(&result_a[j][i][start], source_a[j][i], count * sizeof(PetscScalar));
@@ -323,10 +326,10 @@ petsc::Vec &Array::vec() const {
 
 std::shared_ptr<petsc::DM> Array::dm() const {
   if (m_impl->da == nullptr) {
-    // dof > 1 for vector, staggered grid 2D fields, etc. In this case zlevels.size() ==
-    // 1. For 3D fields, dof == 1 (all 3D fields are scalar) and zlevels.size()
+    // dof > 1 for vector, staggered grid 2D fields, etc. In this case levels().size() ==
+    // 0. For 3D fields, dof == 1 (all 3D fields are scalar) and levels().size()
     // corresponds to dof of the underlying PETSc DM object.
-    auto da_dof = std::max((unsigned int)m_impl->zlevels.size(), m_impl->dof);
+    auto da_dof = std::max(levels().size(), (size_t)ndof());
 
     // initialize the da member:
     m_impl->da = grid()->get_dm(da_dof, m_impl->da_stencil_width);
@@ -459,85 +462,112 @@ void Array::read_impl(const File &file, const unsigned int time) {
   }
 }
 
-//! \brief Define variables corresponding to an Array in a file opened using `file`.
-void Array::define(const File &file, io::Type default_type) const {
-  for (unsigned int j = 0; j < ndof(); ++j) {
-    io::Type type = metadata(j).get_output_type();
-    if (type == io::PISM_NAT) {
-      type = default_type;
-    }
-
-    io::define_spatial_variable(metadata(j), *m_impl->grid, file, type);
-  }
-}
-
-//! @brief Returns a reference to the SpatialVariableMetadata object
+//! @brief Returns a reference to the VariableMetadata object
 //! containing metadata for the compoment N.
-SpatialVariableMetadata& Array::metadata(unsigned int N) {
+VariableMetadata &Array::metadata(unsigned int N) {
   assert(N < m_impl->dof);
   return m_impl->metadata[N];
 }
 
-const SpatialVariableMetadata& Array::metadata(unsigned int N) const {
+const VariableMetadata &Array::metadata(unsigned int N) const {
   assert(N < m_impl->dof);
   return m_impl->metadata[N];
+}
+
+std::vector<VariableMetadata> Array::all_metadata() const {
+  return m_impl->metadata;
 }
 
 //! Writes an Array to a NetCDF file.
-void Array::write_impl(const File &file) const {
-  auto log = m_impl->grid->ctx()->log();
+void Array::write_impl(const OutputFile &file) const {
+  auto log  = grid()->ctx()->log();
   auto time = timestamp(m_impl->grid->com);
 
-  // The simplest case:
-  if (ndof() == 1) {
-    log->message(3, "[%s] Writing %s...\n",
-                 time.c_str(), metadata(0).get_name().c_str());
-
-    if (m_impl->ghosted) {
-      petsc::TemporaryGlobalVec tmp(dm());
-
-      this->copy_to_vec(dm(), tmp);
-
-      petsc::VecArray tmp_array(tmp);
-
-      io::write_spatial_variable(metadata(0), *grid(), file, tmp_array.get());
-    } else {
-      petsc::VecArray v_array(vec());
-      io::write_spatial_variable(metadata(0), *grid(), file, v_array.get());
+  // get the unit converter from internal to output units
+  auto unit_converter = [this](unsigned int j) {
+    auto ctx = grid()->ctx();
+    if (ctx->config()->get_flag("output.use_MKS")) {
+      // use internal units
+      return std::make_shared<units::Converter>();
     }
+
+    std::string units        = metadata(j)["units"];
+    std::string output_units = metadata(j)["output_units"];
+
+    bool use_output_units =
+        (not units.empty() and not output_units.empty() and units != output_units);
+
+    if (use_output_units) {
+      return std::make_shared<units::Converter>(ctx->unit_system(), units, output_units);
+    }
+
+    return std::make_shared<units::Converter>();
+  };
+
+  // 3D arrays have one or more levels, collections of fields have 0 levels.
+  size_t n_levels = levels().empty() ? 1 : levels().size();
+  size_t local_array_size = grid()->xm() * grid()->ym() * n_levels;
+
+  // Scalar 2D and 3D arrays:
+  if (ndof() == 1) {
+    log->message(3, "[%s] Writing %s...\n", time.c_str(), metadata(0).get_name().c_str());
+
+    petsc::TemporaryGlobalVec tmp(dm());
+
+    this->copy_to_vec(dm(), tmp);
+
+    petsc::VecArray tmp_array(tmp);
+
+    unit_converter(0)->convert_doubles(tmp_array.get(), local_array_size);
+
+    file.write_distributed_array(metadata(0).get_name(), tmp_array.get());
+
     return;
   }
 
-  // Get the dof=1, stencil_width=0 DMDA (components are always scalar
-  // and we just need a global Vec):
-  auto da2 = m_impl->grid->get_dm(1, 0);
+  // 2D arrays with more than one degree of freedom (vectors, scalars on the staggered
+  // grid, collections of scalars)
+  {
+    // Get the dof=1, stencil_width=0 DMDA (components are always scalar
+    // and we just need a global Vec):
+    auto da2 = grid()->get_dm(1, 0);
 
-  // a temporary one-component vector, distributed across processors
-  // the same way v is
-  petsc::TemporaryGlobalVec tmp(da2);
+    // a temporary one-component vector, distributed across processors
+    // the same way v is
+    petsc::TemporaryGlobalVec tmp(da2);
 
-  for (unsigned int j = 0; j < ndof(); ++j) {
-    get_dof(da2, tmp, j);
+    for (unsigned int j = 0; j < ndof(); ++j) {
+      get_dof(da2, tmp, j);
 
-    petsc::VecArray tmp_array(tmp);
-    log->message(3, "[%s] Writing %s...\n",
-                 time.c_str(), metadata(j).get_name().c_str());
-    io::write_spatial_variable(metadata(j), *grid(), file, tmp_array.get());
+      petsc::VecArray tmp_array(tmp);
+
+      log->message(3, "[%s] Writing %s...\n", time.c_str(), metadata(j).get_name().c_str());
+
+      unit_converter(j)->convert_doubles(tmp_array.get(), local_array_size);
+
+      file.write_distributed_array(metadata(j).get_name(), tmp_array.get());
+    }
   }
 }
 
 //! Dumps a variable to a file, overwriting this file's contents (for debugging).
 void Array::dump(const char filename[]) const {
-  File file(m_impl->grid->com, filename,
-            string_to_backend(m_impl->grid->ctx()->config()->get_string("output.format")),
-            io::PISM_READWRITE_CLOBBER);
+  auto ctx = grid()->ctx();
+  auto writer = std::make_shared<SynchronousOutputWriter>(ctx->com(), *ctx->config());
+  writer->initialize({}, true);
 
-  if (not m_impl->metadata[0].get_time_independent()) {
-    io::define_time(file, *m_impl->grid->ctx());
-    io::append_time(file, *m_impl->grid->ctx()->config(), m_impl->grid->ctx()->time()->current());
+  OutputFile file(writer, filename);
+
+  if (metadata(0).get_time_dependent()) {
+    auto time = ctx->time();
+    file.define_variable(time->metadata());
+    file.append_time(time->current());
   }
 
-  define(file, io::PISM_DOUBLE);
+  for (unsigned int k = 0; k < ndof(); ++k) {
+    file.define_variable(metadata(k));
+  }
+
   write(file);
 }
 
@@ -639,10 +669,10 @@ void Array::check_array_indices(int i, int j, unsigned int k) const {
     ghost_width = m_impl->da_stencil_width;
   }
   // m_impl->dof > 1 for vector, staggered grid 2D fields, etc. In this case
-  // zlevels.size() == 1. For 3D fields, m_impl->dof == 1 (all 3D fields are
-  // scalar) and zlevels.size() corresponds to dof of the underlying PETSc
+  // levels().size() == 0. For 3D fields, ndof() == 1 (all 3D fields are
+  // scalar) and levels().size() corresponds to dof of the underlying PETSc
   // DM object. So we want the bigger of the two numbers here.
-  unsigned int N = std::max((size_t)m_impl->dof, m_impl->zlevels.size());
+  unsigned int N = std::max((size_t)ndof(), levels().size());
 
   bool out_of_range = (i < m_impl->grid->xs() - ghost_width) ||
     (i > m_impl->grid->xs() + m_impl->grid->xm() + ghost_width) ||
@@ -656,7 +686,8 @@ void Array::check_array_indices(int i, int j, unsigned int k) const {
   }
 
   if (m_array == NULL) {
-    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "%s: begin_access() was not called", m_impl->name.c_str());
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "%s: begin_access() was not called",
+                                  m_impl->name.c_str());
   }
 }
 
@@ -719,15 +750,6 @@ std::vector<double> Array::norm(int n) const {
   }
 }
 
-void Array::write(const std::string &filename) const {
-  // We expect the file to be present and ready to write into.
-  File file(m_impl->grid->com, filename,
-            string_to_backend(m_impl->grid->ctx()->config()->get_string("output.format")),
-            io::PISM_READWRITE);
-
-  this->write(file);
-}
-
 void Array::read(const std::string &filename, unsigned int time) {
   File file(m_impl->grid->com, filename, io::PISM_GUESS, io::PISM_READONLY);
   this->read(file, time);
@@ -739,7 +761,7 @@ void Array::regrid(const std::string &filename, io::Default default_value) {
 }
 
 static void check_range(petsc::Vec &v,
-                        const SpatialVariableMetadata &metadata,
+                        const VariableMetadata &metadata,
                         const std::string &filename,
                         const Logger &log,
                         bool report_range) {
@@ -834,8 +856,7 @@ void Array::read(const File &file, const unsigned int time) {
   inc_state_counter();          // mark as modified
 }
 
-void Array::write(const File &file) const {
-  define(file, io::PISM_DOUBLE);
+void Array::write(const OutputFile &file) const {
 
   MPI_Comm com = m_impl->grid->com;
   double start_time = get_time(com);
@@ -908,14 +929,14 @@ void AccessScope::add(const std::vector<const PetscAccessible*> &vecs) {
 //! Return the total number of elements in the *owned* part of an array.
 size_t Array::size() const {
   // m_impl->dof > 1 for vector, staggered grid 2D fields, etc. In this case
-  // zlevels.size() == 1. For 3D fields, m_impl->dof == 1 (all 3D fields are
-  // scalar) and zlevels.size() corresponds to dof of the underlying PETSc
+  // levels().size() == 0. For 3D fields, m_impl->dof == 1 (all 3D fields are
+  // scalar) and levels().size() corresponds to dof of the underlying PETSc
   // DM object.
 
   size_t
-    Mx = m_impl->grid->Mx(),
-    My = m_impl->grid->My(),
-    Mz = m_impl->zlevels.size(),
+    Mx = grid()->Mx(),
+    My = grid()->My(),
+    Mz = levels().empty() ? 1 : levels().size(),
     dof = m_impl->dof;
 
   return Mx * My * Mz * dof;
@@ -1220,6 +1241,16 @@ void Array::view(std::vector<std::shared_ptr<petsc::Viewer> > viewers) const {
   }
 }
 
+std::set<VariableMetadata> metadata(std::initializer_list<const Array *> vecs) {
+  std::set<VariableMetadata> result;
+  for (const auto *vec : vecs) {
+    for (const auto &var : vec->all_metadata()) {
+      result.insert(var);
+    }
+  }
+  return result;
+}
+
 } // end of namespace array
 
 void convert_vec(petsc::Vec &v, units::System::Ptr system,
@@ -1234,5 +1265,6 @@ void convert_vec(petsc::Vec &v, units::System::Ptr system,
   petsc::VecArray data(v);
   c.convert_doubles(data.get(), data_size);
 }
+
 
 } // end of namespace pism

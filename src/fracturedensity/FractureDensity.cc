@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020, 2021, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2019, 2020, 2021, 2022, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -24,6 +24,8 @@
 #include "pism/geometry/Geometry.hh"
 #include "pism/stressbalance/StressBalance.hh"
 #include "pism/util/pism_utilities.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 
@@ -117,12 +119,11 @@ void FractureDensity::initialize() {
   m_age.set(0.0);
 }
 
-void FractureDensity::define_model_state_impl(const File &output) const {
-  m_density.define(output, io::PISM_DOUBLE);
-  m_age.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> FractureDensity::state_impl() const {
+  return array::metadata({ &m_density, &m_age });
 }
 
-void FractureDensity::write_model_state_impl(const File &output) const {
+void FractureDensity::write_state_impl(const OutputFile &output) const {
   m_density.write(output);
   m_age.write(output);
 }
@@ -225,7 +226,7 @@ void FractureDensity::update(double dt,
 
   double minH = m_config->get_number("stress_balance.ice_free_thickness_standard");
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double tempFD = 0.0;
@@ -475,7 +476,7 @@ void FractureDensity::update(double dt,
   D.copy_from(D_new);
 }
 
-DiagnosticList FractureDensity::diagnostics_impl() const {
+DiagnosticList FractureDensity::spatial_diagnostics_impl() const {
   return {{"fracture_density", Diagnostic::wrap(m_density)},
           {"fracture_growth_rate", Diagnostic::wrap(m_growth_rate)},
           {"fracture_healing_rate", Diagnostic::wrap(m_healing_rate)},

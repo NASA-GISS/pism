@@ -119,20 +119,26 @@ std::shared_ptr<Logger> Context::log() {
 }
 
 std::shared_ptr<Context> context_from_options(MPI_Comm com,
-                                              const std::string &prefix,
-                                              bool print) {
+                                              const std::string &prefix) {
   // unit system
   auto sys = std::make_shared<units::System>();
 
-  // logger
-  auto logger = logger_from_options(com);
-
   // configuration parameters
-  auto config = config_from_options(com, *logger, sys);
+  auto config = config_from_options(com, sys);
 
-  if (print) {
-    print_config(*logger, 3, *config);
-  }
+  return context_from_config(com, config, prefix);
+}
+
+std::shared_ptr<Context> context_from_config(MPI_Comm com,
+                                             std::shared_ptr<Config> config,
+                                             const std::string &prefix) {
+  // unit system
+  auto sys = config->unit_system();
+
+  // logger
+  auto logger = std::make_shared<Logger>(com, 1);
+
+  logger->set_threshold(static_cast<int>(config->get_number("output.runtime.verbosity")));
 
   // time manager
   auto time = std::make_shared<Time>(com, config, *logger, sys);
@@ -142,6 +148,5 @@ std::shared_ptr<Context> context_from_options(MPI_Comm com,
 
   return std::make_shared<Context>(com, sys, config, EC, time, logger, prefix);
 }
-
 
 } // end of namespace pism

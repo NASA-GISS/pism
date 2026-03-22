@@ -79,7 +79,7 @@ and then set its metadata:
        .standard_name("land_ice_thickness");
    ice_thickness.metadata().set_number("valid_min", 0.0);
 
-Here `grid` is an `IceGrid` instance, `thk` is the name of the NetCDF variable,
+Here `grid` is an `Grid` instance, `thk` is the name of the NetCDF variable,
 `WITH_GHOSTS` means that storage for "ghost" ("halo") points will be allocated, and "2" is
 the number of ghosts (in other words: required stencil width).
 
@@ -164,7 +164,7 @@ the time variable.
    File file(m_grid->com, m_config->get_string("output.format"),
             filename, PISM_READWRITE_CLOBBER);
 
-   io::define_time(file, *m_grid->ctx());
+   io::define_time(file, *m_grid->ctx()->time());
    io::append_time(file, *m_grid->ctx()->config(), current_time);
 
 When a file is opened with the mode `PISM_READWRITE_CLOBBER`, PISM checks if this file is

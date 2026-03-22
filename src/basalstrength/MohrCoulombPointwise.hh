@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 PISM Authors
+/* Copyright (C) 2019, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -28,7 +28,7 @@ namespace pism {
  */
 class MohrCoulombPointwise {
 public:
-  MohrCoulombPointwise(Config::ConstPtr config);
+  MohrCoulombPointwise(std::shared_ptr<const Config> config);
 
   /*!
    * Compute basal yield stress

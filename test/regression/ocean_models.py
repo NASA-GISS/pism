@@ -38,17 +38,19 @@ def water_column_pressure(ice_thickness):
     return 0.5 * water_density * g * water_depth**2 / ice_thickness
 
 def create_given_input_file(filename, grid, temperature, mass_flux):
-    PISM.util.prepare_output(filename)
+    output = PISM.util.prepare_output(filename)
 
     T = PISM.Scalar(grid, "shelfbtemp")
     T.metadata(0).long_name("shelf base temperature").units("kelvin")
     T.set(temperature)
-    T.write(filename)
+    output.define_variable(T.metadata())
+    T.write(output)
 
     M = PISM.Scalar(grid, "shelfbmassflux")
     M.metadata(0).long_name("shelf base mass flux").units("kg m^-2 s^-1")
     M.set(mass_flux)
-    M.write(filename)
+    output.define_variable(M.metadata())
+    M.write(output)
 
 def check_model(model, T, SMB, water_column_pressure):
     "Check values returned by an ocean model"
@@ -69,74 +71,80 @@ def check_modifier(model, modifier, dT, dSMB, dwater_column_pressure):
                      model.average_water_column_pressure(),
                      dwater_column_pressure)
 
-def constant_test():
-    "Model Constant"
+class OceanConstant(TestCase):
+    def test_constant(self):
+        "Model Constant"
 
-    ice_thickness = 1000.0                  # meters
+        ice_thickness = 1000.0                  # meters
 
-    # compute mass flux
-    melt_rate = config.get_number("ocean.constant.melt_rate", "m second-1")
-    ice_density = config.get_number("constants.ice.density")
-    mass_flux = melt_rate * ice_density
+        # compute mass flux
+        melt_rate = config.get_number("ocean.constant.melt_rate", "m second-1")
+        ice_density = config.get_number("constants.ice.density")
+        mass_flux = melt_rate * ice_density
 
-    # compute pressure melting temperature
-    T0 = config.get_number("constants.fresh_water.melting_point_temperature")
-    beta_CC = config.get_number("constants.ice.beta_Clausius_Clapeyron")
-    g = config.get_number("constants.standard_gravity")
+        # compute pressure melting temperature
+        T0 = config.get_number("constants.fresh_water.melting_point_temperature")
+        beta_CC = config.get_number("constants.ice.beta_Clausius_Clapeyron")
+        g = config.get_number("constants.standard_gravity")
 
-    pressure = ice_density * g * ice_thickness
-    T_melting = T0 - beta_CC * pressure
+        pressure = ice_density * g * ice_thickness
+        T_melting = T0 - beta_CC * pressure
 
-    average_water_column_pressure = water_column_pressure(ice_thickness)
+        average_water_column_pressure = water_column_pressure(ice_thickness)
 
-    grid = shallow_grid()
-    geometry = PISM.Geometry(grid)
-    geometry.ice_thickness.set(ice_thickness)
-    geometry.bed_elevation.set(-2 * ice_thickness)
-    geometry.ensure_consistency(0.0)
+        grid = shallow_grid()
+        geometry = PISM.Geometry(grid)
+        geometry.ice_thickness.set(ice_thickness)
+        geometry.bed_elevation.set(-2 * ice_thickness)
+        geometry.ensure_consistency(0.0)
+        inputs = PISM.OceanInputs()
+        inputs.geometry = geometry
 
-    model = PISM.OceanConstant(grid)
+        model = PISM.OceanConstant(grid)
 
-    model.init(geometry)
-    model.update(geometry, 0, 1)
+        model.init(geometry)
+        model.update(inputs, 0, 1)
 
-    check_model(model, T_melting, mass_flux, average_water_column_pressure)
+        check_model(model, T_melting, mass_flux, average_water_column_pressure)
 
-    assert model.max_timestep(0).infinite() == True
+        self.assertTrue(model.max_timestep(0).infinite())
 
-def pik_test():
-    "Model PIK"
-    grid = shallow_grid()
-    geometry = PISM.Geometry(grid)
+class OceanPIK(TestCase):
+    def test_pik(self):
+        "Model PIK"
+        grid = shallow_grid()
+        geometry = PISM.Geometry(grid)
 
-    ice_thickness = 1000.0                  # meters
+        ice_thickness = 1000.0                  # meters
 
-    # compute pressure melting temperature
-    ice_density = config.get_number("constants.ice.density")
-    T0 = config.get_number("constants.fresh_water.melting_point_temperature")
-    beta_CC = config.get_number("constants.ice.beta_Clausius_Clapeyron")
-    g = config.get_number("constants.standard_gravity")
+        # compute pressure melting temperature
+        ice_density = config.get_number("constants.ice.density")
+        T0 = config.get_number("constants.fresh_water.melting_point_temperature")
+        beta_CC = config.get_number("constants.ice.beta_Clausius_Clapeyron")
+        g = config.get_number("constants.standard_gravity")
 
-    pressure = ice_density * g * ice_thickness
-    T_melting = T0 - beta_CC * pressure
+        pressure = ice_density * g * ice_thickness
+        T_melting = T0 - beta_CC * pressure
 
-    average_water_column_pressure = water_column_pressure(ice_thickness)
+        average_water_column_pressure = water_column_pressure(ice_thickness)
 
-    mass_flux = 5.36591610659e-06  # stored mass flux value returned by the model
+        mass_flux = 5.36591610659e-06  # stored mass flux value returned by the model
 
-    # create the model
-    geometry.ice_thickness.set(ice_thickness)
-    geometry.bed_elevation.set(-2 * ice_thickness)
-    geometry.ensure_consistency(0.0)
+        # create the model
+        geometry.ice_thickness.set(ice_thickness)
+        geometry.bed_elevation.set(-2 * ice_thickness)
+        geometry.ensure_consistency(0.0)
+        inputs = PISM.OceanInputs()
+        inputs.geometry = geometry
 
-    model = PISM.OceanPIK(grid)
+        model = PISM.OceanPIK(grid)
 
-    model.init(geometry)
-    model.update(geometry, 0, 1)
+        model.init(geometry)
+        model.update(inputs, 0, 1)
 
-    check_model(model, T_melting, mass_flux, average_water_column_pressure)
+        check_model(model, T_melting, mass_flux, average_water_column_pressure)
 
-    assert model.max_timestep(0).infinite() == True
+        self.assertTrue(model.max_timestep(0).infinite())
 
 class GivenTest(TestCase):
     "Test the Given class"
@@ -144,6 +152,8 @@ class GivenTest(TestCase):
     def setUp(self):
         self.grid = shallow_grid()
         self.geometry = PISM.Geometry(self.grid)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
         self.filename = tmp_name("ocean_given_input")
 
         self.temperature = 263.0
@@ -165,9 +175,9 @@ class GivenTest(TestCase):
 
         model = PISM.OceanGiven(self.grid)
         model.init(self.geometry)
-        model.update(self.geometry, 0, 1)
+        model.update(self.inputs, 0, 1)
 
-        assert model.max_timestep(0).infinite() == True
+        self.assertTrue(model.max_timestep(0).infinite())
 
         check_model(model, self.temperature, self.mass_flux,
                     self.average_water_column_pressure)
@@ -187,25 +197,28 @@ class GivenTHTest(TestCase):
 
         self.grid = shallow_grid()
         self.geometry = PISM.Geometry(self.grid)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
 
         self.geometry.ice_thickness.set(ice_thickness)
         self.geometry.bed_elevation.set(-2 * ice_thickness)
         self.geometry.ensure_consistency(0.0)
 
         self.filename = tmp_name("ocean_given_th_input")
-        filename = self.filename
 
-        PISM.util.prepare_output(filename)
+        output = PISM.util.prepare_output(self.filename)
 
         Th = PISM.Scalar(self.grid, "theta_ocean")
         Th.metadata(0).long_name("potential temperature").units("kelvin")
         Th.set(potential_temperature)
-        Th.write(filename)
+        output.define_variable(Th.metadata())
+        Th.write(output)
 
         S = PISM.Scalar(self.grid, "salinity_ocean")
         S.metadata(0).long_name("ocean salinity").units("g/kg")
         S.set(salinity)
-        S.write(filename)
+        output.define_variable(S.metadata())
+        S.write(output)
 
         config.set_string("ocean.th.file", self.filename)
 
@@ -214,9 +227,9 @@ class GivenTHTest(TestCase):
 
         model = PISM.OceanGivenTH(self.grid)
         model.init(self.geometry)
-        model.update(self.geometry, 0, 1)
+        model.update(self.inputs, 0, 1)
 
-        assert model.max_timestep(0).infinite() == True
+        self.assertTrue(model.max_timestep(0).infinite())
 
         check_model(model, self.temperature, self.mass_flux, self.average_water_column_pressure)
 
@@ -230,6 +243,8 @@ class DeltaT(TestCase):
         self.geometry = PISM.Geometry(self.grid)
         self.geometry.ice_thickness.set(1000.0)
         self.geometry.ensure_consistency(0.0)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
 
         self.model = PISM.OceanConstant(self.grid)
         self.dT = -5.0
@@ -245,12 +260,13 @@ class DeltaT(TestCase):
         modifier = PISM.OceanDeltaT(self.grid, self.model)
 
         modifier.init(self.geometry)
-        modifier.update(self.geometry, 0, 1)
+        modifier.update(self.inputs, 0, 1)
 
         check_modifier(self.model, modifier, self.dT, 0.0, 0.0)
 
     def tearDown(self):
-        os.remove(self.filename)
+        pass
+        # os.remove(self.filename)
 
 class DeltaSMB(TestCase):
     def setUp(self):
@@ -259,6 +275,8 @@ class DeltaSMB(TestCase):
         self.geometry = PISM.Geometry(self.grid)
         self.geometry.ice_thickness.set(1000.0)
         self.geometry.ensure_consistency(0.0)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
         self.model = PISM.OceanConstant(self.grid)
         self.dSMB = -5.0
 
@@ -273,7 +291,7 @@ class DeltaSMB(TestCase):
         modifier = PISM.OceanDeltaSMB(self.grid, self.model)
 
         modifier.init(self.geometry)
-        modifier.update(self.geometry, 0, 1)
+        modifier.update(self.inputs, 0, 1)
 
         check_modifier(self.model, modifier, 0.0, self.dSMB, 0.0)
 
@@ -287,6 +305,8 @@ class AnomalyBMB(TestCase):
         self.geometry = PISM.Geometry(self.grid)
         self.geometry.ice_thickness.set(1000.0)
         self.geometry.ensure_consistency(0.0)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
 
         self.model = PISM.OceanConstant(self.grid)
         self.dBMB = -5.0
@@ -305,7 +325,7 @@ class AnomalyBMB(TestCase):
         modifier = PISM.OceanAnomaly(self.grid, self.model)
 
         modifier.init(self.geometry)
-        modifier.update(self.geometry, 0, 1)
+        modifier.update(self.inputs, 0, 1)
 
         check_modifier(self.model, modifier, 0.0, self.dBMB, 0.0)
 
@@ -325,6 +345,8 @@ class DeltaMBP(TestCase):
         self.geometry.ice_thickness.set(self.H)
         self.geometry.bed_elevation.set(-2 * self.H)
         self.geometry.ensure_consistency(0.0)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
 
         create_scalar_forcing(self.filename, "delta_MBP", "Pa", [self.dP], [0],
                               time_bounds=[0, 1])
@@ -337,7 +359,7 @@ class DeltaMBP(TestCase):
         modifier = PISM.OceanDeltaMBP(self.grid, self.model)
 
         modifier.init(self.geometry)
-        modifier.update(self.geometry, 0, 1)
+        modifier.update(self.inputs, 0, 1)
 
         model = self.model
 
@@ -369,6 +391,8 @@ class FracMBP(TestCase):
         self.geometry.ice_thickness.set(self.H)
         self.geometry.bed_elevation.set(-2 * self.H)
         self.geometry.ensure_consistency(0.0)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
 
         create_scalar_forcing(self.filename, "frac_MBP", "1",
                               [self.Lambda], [0], time_bounds=[0, 1])
@@ -381,7 +405,7 @@ class FracMBP(TestCase):
         modifier = PISM.OceanFracMBP(self.grid, self.model)
 
         modifier.init(self.geometry)
-        modifier.update(self.geometry, 0, 1)
+        modifier.update(self.inputs, 0, 1)
 
         model = self.model
 
@@ -408,6 +432,8 @@ class FracSMB(TestCase):
         self.geometry = PISM.Geometry(self.grid)
         self.geometry.ice_thickness.set(1000.0)
         self.geometry.ensure_consistency(0.0)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
         self.model = PISM.OceanConstant(self.grid)
         self.dSMB = 0.5
 
@@ -422,7 +448,7 @@ class FracSMB(TestCase):
         modifier = PISM.OceanFracSMB(self.grid, self.model)
 
         modifier.init(self.geometry)
-        modifier.update(self.geometry, 0, 1)
+        modifier.update(self.inputs, 0, 1)
 
         model = self.model
 
@@ -448,6 +474,8 @@ class Cache(TestCase):
         self.geometry = PISM.Geometry(self.grid)
         self.geometry.ice_thickness.set(1000.0)
         self.geometry.ensure_consistency(0.0)
+        self.inputs = PISM.OceanInputs()
+        self.inputs.geometry = self.geometry
 
         self.constant = PISM.OceanConstant(self.grid)
 
@@ -475,7 +503,7 @@ class Cache(TestCase):
         ts = np.arange(float(N)) * dt
         diff = []
         for t in ts:
-            modifier.update(self.geometry, t, dt)
+            modifier.update(self.inputs, t, dt)
 
             check_difference(model.shelf_base_mass_flux(),
                              modifier.shelf_base_mass_flux(), 0.0)

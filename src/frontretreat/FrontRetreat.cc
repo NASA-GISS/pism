@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2022, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -24,6 +24,7 @@
 #include "pism/geometry/part_grid_threshold_thickness.hh"
 #include "pism/geometry/Geometry.hh"
 #include "pism/util/Context.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 
@@ -50,7 +51,7 @@ void FrontRetreat::compute_modified_mask(const array::CellType1 &input,
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto p = m_grid->points(1); p; p.next()) {
+    for (auto p : m_grid->points_with_ghosts(1)) {
       const int i = p.i(), j = p.j();
 
       if (i < 0 or i >= Mx or j < 0 or j >= My) {
@@ -86,7 +87,7 @@ MaxTimestep FrontRetreat::max_timestep(const array::CellType1 &cell_type,
 
   array::AccessScope list{&cell_type, &bc_mask, &retreat_rate};
 
-  for (auto pt = grid->points(); pt; pt.next()) {
+  for (auto pt : grid->points()) {
     const int i = pt.i(), j = pt.j();
 
     if (cell_type.ice_free_ocean(i, j) and
@@ -167,7 +168,7 @@ void FrontRetreat::update_geometry(double dt,
       &surface_elevation};
 
   // Step 1: Apply the computed horizontal retreat rate:
-  for (auto pt = m_grid->points(); pt; pt.next()) {
+  for (auto pt : m_grid->points()) {
     const int i = pt.i(), j = pt.j();
 
     // apply retreat rate at the margin (i.e. to partially-filled cells) only
@@ -238,7 +239,7 @@ void FrontRetreat::update_geometry(double dt,
   // Step 2: update ice thickness and Href in neighboring cells if we need to propagate mass losses.
   m_tmp.update_ghosts();
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     // Note: this condition has to match the one in step 1 above.

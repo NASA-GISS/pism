@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016, 2017, 2023 PISM Authors
+/* Copyright (C) 2015, 2016, 2017, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -20,14 +20,14 @@
 #include <cmath>
 
 #include "pism/rheology/IsothermalGlen.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 
 namespace pism {
 namespace rheology {
 
-IsothermalGlen::IsothermalGlen(const std::string &prefix,
-                               const Config &config, EnthalpyConverter::Ptr ec)
-  : PatersonBudd(prefix, config, ec) {
+IsothermalGlen::IsothermalGlen(double exponent,
+                               const Config &config, std::shared_ptr<EnthalpyConverter> ec)
+  : PatersonBudd(exponent, config, ec) {
   m_name = "isothermal Glen";
   
   m_softness_A = config.get_number("flow_law.isothermal_Glen.ice_softness");

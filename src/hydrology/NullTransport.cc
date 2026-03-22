@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2023 PISM Authors
+// Copyright (C) 2012-2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -21,7 +21,7 @@
 #include "pism/util/MaxTimestep.hh"
 #include "pism/util/array/CellType.hh"
 #include "pism/util/error_handling.hh"
-#include "pism/util/pism_utilities.hh" // clip
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace hydrology {
@@ -122,7 +122,7 @@ void NullTransport::update_impl(double t, double dt, const Inputs& inputs) {
     list.add(m_surface_input_rate);
   }
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double
@@ -182,7 +182,7 @@ void NullTransport::diffuse_till_water(double dt) {
     Ry = K * dt / (dy * dy);
 
   array::AccessScope list{&m_Wtill, &m_Wtill_old, &m_flow_change};
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     auto W = m_Wtill_old.star(i, j);

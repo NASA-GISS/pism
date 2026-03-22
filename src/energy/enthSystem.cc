@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2018, 2020, 2021, 2022, 2023 Andreas Aschwanden and Ed Bueler and Constantine Khroulev
+// Copyright (C) 2009-2018, 2020, 2021, 2022, 2023, 2025 Andreas Aschwanden and Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -20,7 +20,7 @@
 #include <algorithm>            // std::min
 
 #include "pism/energy/enthSystem.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/EnthalpyConverter.hh"
 
 #include "pism/util/error_handling.hh"
@@ -37,7 +37,7 @@ enthSystemCtx::enthSystemCtx(const std::vector<double>& storage_grid,
                              const array::Array3D &v3,
                              const array::Array3D &w3,
                              const array::Array3D &strain_heating3,
-                             EnthalpyConverter::Ptr EC)
+                             std::shared_ptr<EnthalpyConverter> EC)
 : columnSystemCtx(storage_grid, prefix, dx, dy, dt, u3, v3, w3),
   m_Enth3(Enth3),
   m_strain_heating3(strain_heating3),

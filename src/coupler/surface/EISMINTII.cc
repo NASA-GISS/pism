@@ -1,4 +1,4 @@
-/* Copyright (C) 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -20,10 +20,11 @@
 #include <algorithm>            // std::min
 
 #include "pism/coupler/surface/EISMINTII.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/pism_options.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/MaxTimestep.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace surface {
@@ -123,7 +124,7 @@ void EISMINTII::initialize_using_formulas() {
 
   array::AccessScope list{m_temperature.get(), m_mass_flux.get()};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     const double r = sqrt(pow(m_grid->x(i) - cx, 2) + pow(m_grid->y(j) - cy, 2));

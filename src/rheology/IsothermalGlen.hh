@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2023 PISM Authors
+/* Copyright (C) 2015, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -28,13 +28,13 @@ namespace rheology {
 //! Isothermal Glen ice allowing extra customization.
 class IsothermalGlen : public PatersonBudd {
 public:
-  IsothermalGlen(const std::string &prefix, const Config &config, EnthalpyConverter::Ptr EC);
+  IsothermalGlen(double exponent, const Config &config, std::shared_ptr<EnthalpyConverter> EC);
 protected:
   double flow_impl(double stress, double, double, double) const;
   double softness_impl(double, double) const;
   double hardness_impl(double, double) const;
   double flow_from_temp(double stress, double, double, double) const;
-protected:
+
   double m_softness_A, m_hardness_B;
 };
 

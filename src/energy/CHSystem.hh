@@ -1,4 +1,4 @@
-/* Copyright (C) 2018, 2021, 2023 PISM Authors
+/* Copyright (C) 2018, 2021, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -48,10 +48,10 @@ protected:
 
   void update_impl(double t, double dt, const Inputs &inputs);
 
-  void define_model_state_impl(const File &output) const;
-  void write_model_state_impl(const File &output) const;
+  std::set<VariableMetadata> state_impl() const;
+  void write_state_impl(const OutputFile &output) const;
 
-  DiagnosticList diagnostics_impl() const;
+  DiagnosticList spatial_diagnostics_impl() const;
 };
 
 void cryo_hydrologic_warming_flux(double k,

@@ -44,12 +44,6 @@ if (Pism_BUILD_PYTHON_BINDINGS)
 
   set_property(SOURCE PISM.i PROPERTY SWIG_FLAGS "-I${CMAKE_BINARY_DIR}" APPEND)
 
-  if(Pism_USE_JANSSON)
-    set_property(SOURCE PISM.i PROPERTY SWIG_FLAGS "-DPism_USE_JANSSON=1" APPEND)
-  else()
-    set_property(SOURCE PISM.i PROPERTY SWIG_FLAGS "-DPism_USE_JANSSON=0" APPEND)
-  endif()
-
   if(Pism_DEBUG)
     set_property(SOURCE PISM.i PROPERTY SWIG_FLAGS "-DPism_DEBUG=1" APPEND)
   else()
@@ -67,7 +61,7 @@ if (Pism_BUILD_PYTHON_BINDINGS)
     LANGUAGE python
     SOURCES PISM.i pism_python.cc)
 
-  SWIG_LINK_LIBRARIES(cpp ${Python3_LIBRARIES} ${PISM_PYTHON_BINDING_LIBRARIES})
+  TARGET_LINK_LIBRARIES(cpp ${Python3_LIBRARIES} ${PISM_PYTHON_BINDING_LIBRARIES})
 
   # Disable compiler warnings:
   SET_SOURCE_FILES_PROPERTIES(${swig_generated_file_fullname}
@@ -102,33 +96,13 @@ if (Pism_BUILD_PYTHON_BINDINGS)
     COMPONENT RuntimeLibraries
     )
 
+    install(CODE "MESSAGE(\"\nPlease make sure PYTHONPATH includes ${CMAKE_INSTALL_PREFIX}/${PISM_PYTHON_MODULE_DIR}\")")
+
   add_custom_target (install_python_bindings_in_the_build_directory ALL
     COMMAND ${CMAKE_COMMAND} -E copy ${TARGET_FILE} ${CMAKE_BINARY_DIR}/site-packages/PISM
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/cpp.py ${CMAKE_BINARY_DIR}/site-packages/PISM/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/version_info.py ${CMAKE_BINARY_DIR}/site-packages/PISM/
     VERBATIM
     DEPENDS cpp install_site_packages_in_the_build_directory )
-
-  # The Python code snippet below returns 1 if Python can import a PISM
-  # and if the directory of said PISM matches the place we are about to
-  # install PISM's Python wrappers. If the return value is not 1, we
-  # print a message stating how to set your PYTHONPATH.
-  set (pism_test_py "${PROJECT_BINARY_DIR}/pism_test.py")
-  file (WRITE "${pism_test_py}" "
-from os.path import realpath, join
-try:
-    import PISM
-except:
-    exit(0)
-
-if realpath(PISM.__file__) == realpath(join('${PISM_PYTHON_MODULE_DIR}', 'PISM', '__init__.pyc')):
-    exit(1)
-")
-
-  install(CODE "EXEC_PROGRAM( ${Python3_EXECUTABLE} ARGS ${pism_test_py} RETURN_VALUE PISM_PYTHON_MATCHES OUTPUT_VARIABLE PYTHON_OUT )
-if(NOT PISM_PYTHON_MATCHES)
-    MESSAGE(\"\n   ATTENTION! To complete installation of Python bindings you need to add\n\n   export PYTHONPATH=${PISM_FULL_PYTHON_MODULE_DIR}:\$PYTHONPATH\n\n   to your .bashrc or equivalent. \")
-endif()
-" )
 
 endif(Pism_BUILD_PYTHON_BINDINGS)

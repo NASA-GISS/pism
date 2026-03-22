@@ -1,4 +1,4 @@
-// Copyright (C) 2010--2018, 2021, 2022, 2023, 2024 Ed Bueler, Constantine Khroulev, and David Maxwell
+// Copyright (C) 2010--2018, 2021, 2022, 2023, 2024, 2025, 2026 Ed Bueler, Constantine Khroulev, and David Maxwell
 //
 // This file is part of PISM.
 //
@@ -23,14 +23,13 @@ static char help[] =
   "  class thereof. Uses the van der Veen flow-line shelf geometry. Also may be\n"
   "  used in a PISM software (regression) test.\n\n";
 
-#include "pism/stressbalance/ssa/SSATestCase.hh"
+#include <petsc.h>
+
+#include "pism/stressbalance/ssa/tests/SSATestCase.hh"
 #include "pism/util/Context.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/util/petscwrappers/PetscInitializer.hh"
 #include "pism/util/pism_options.hh"
-
-#include "pism/stressbalance/ssa/SSAFD.hh"
-#include "pism/stressbalance/ssa/SSAFEM.hh"
 
 namespace pism {
 namespace stressbalance {
@@ -84,7 +83,7 @@ void SSATestCaseCFBC::initializeSSACoefficients() {
 
   const double x_min = m_grid->x(0);
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     const double x = m_grid->x(i);
@@ -141,14 +140,14 @@ int main(int argc, char *argv[]) {
   /* This explicit scoping forces destructors to be called before PetscFinalize() */
   try {
     std::shared_ptr<Context> ctx = context_from_options(com, "ssa_test_cfbc");
-    Config::Ptr config = ctx->config();
+    auto config = ctx->config();
 
     std::string usage = "\n"
       "usage of SSA_TEST_CFBC:\n"
       "  run ssa_test_cfbc -Mx <number> -My <number>\n"
       "\n";
 
-    bool stop = show_usage_check_req_opts(*ctx->log(), "ssa_test_cfbc", {}, usage);
+    bool stop = maybe_show_usage(*ctx->log(), "ssa_test_cfbc", usage);
 
     if (stop) {
       return 0;

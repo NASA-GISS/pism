@@ -1,4 +1,4 @@
-// Copyright (C) 2008-2018, 2020, 2021, 2022, 2023 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2008-2018, 2020, 2021, 2022, 2023, 2025, 2026 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -21,9 +21,8 @@
 
 #include <string>
 
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/VariableMetadata.hh"
 #include "pism/util/Units.hh"
-#include "pism/util/Logger.hh"
 #include "pism/util/Diagnostic.hh"
 
 namespace pism {
@@ -34,6 +33,7 @@ class Geometry;
 class Time;
 class Profiling;
 class Grid;
+class Logger;
 
 namespace array {
 template<typename T> class Array2D;
@@ -65,7 +65,7 @@ struct InputOptions {
   unsigned int record;
 };
 
-InputOptions process_input_options(MPI_Comm com, Config::ConstPtr config);
+InputOptions process_input_options(MPI_Comm com, std::shared_ptr<const Config> config);
 
 //! \brief A class defining a common interface for most PISM sub-models.
 /*!
@@ -91,10 +91,10 @@ InputOptions process_input_options(MPI_Comm com, Config::ConstPtr config);
 
   \subsection pismcomponent_output Writing to an output file
 
-  A PISM component needs to implement the following I/O methods:
+  A PISM component needs to implement the following I/O-related methods:
 
-  - define_model_state_impl()
-  - write_model_state_impl()
+  - state_impl()
+  - write_state_impl()
 
   Why are all these methods needed? In PISM we separate defining and writing
   NetCDF variables because defining all the NetCDF variables before writing
@@ -107,7 +107,7 @@ InputOptions process_input_options(MPI_Comm com, Config::ConstPtr config);
   - Assemble the list of variables to be written (see
   IceModel::output_variables()); calls add_vars_to_output()
   - Create a NetCDF file
-  - Define all the variables in the file (see IceModel::write_variables());
+  - Define all the variables in the file (see IceModel::define_variables());
   calls define_variables()
   - Write all the variables to the file (same method); calls write_variables().
 
@@ -121,8 +121,8 @@ public:
   Component(std::shared_ptr<const Grid> grid);
   virtual ~Component() = default;
 
-  DiagnosticList diagnostics() const;
-  TSDiagnosticList ts_diagnostics() const;
+  DiagnosticList spatial_diagnostics() const;
+  TSDiagnosticList scalar_diagnostics() const;
 
   std::shared_ptr<const Grid> grid() const;
 
@@ -130,19 +130,21 @@ public:
 
   const Profiling &profiling() const;
 
-  void define_model_state(const File &output) const;
-  void write_model_state(const File &output) const;
+  void write_state(const OutputFile &output) const;
+
+  std::set<VariableMetadata> state() const;
 
   //! Reports the maximum time-step the model can take at time t.
   MaxTimestep max_timestep(double t) const;
 
 protected:
   virtual MaxTimestep max_timestep_impl(double t) const;
-  virtual void define_model_state_impl(const File &output) const;
-  virtual void write_model_state_impl(const File &output) const;
 
-  virtual DiagnosticList diagnostics_impl() const;
-  virtual TSDiagnosticList ts_diagnostics_impl() const;
+  virtual std::set<VariableMetadata> state_impl() const;
+  virtual void write_state_impl(const OutputFile &output) const;
+
+  virtual DiagnosticList spatial_diagnostics_impl() const;
+  virtual TSDiagnosticList scalar_diagnostics_impl() const;
 
   /** @brief This flag determines whether a variable is read from the
       `-regrid_file` file even if it is not listed among variables in
@@ -155,11 +157,11 @@ protected:
   //! grid used by this component
   const std::shared_ptr<const Grid> m_grid;
   //! configuration database used by this component
-  const Config::ConstPtr m_config;
+  std::shared_ptr<const Config> m_config;
   //! unit system used by this component
   const units::System::Ptr m_sys;
   //! logger (for easy access)
-  const Logger::ConstPtr m_log;
+  std::shared_ptr<const Logger> m_log;
 };
 
 } // end of namespace pism

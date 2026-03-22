@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2021, 2023 PISM Authors
+/* Copyright (C) 2015, 2021, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -31,9 +31,7 @@ namespace rheology {
 //! Derived class of FlowLaw for Paterson-Budd (1982)-Glen ice.
 class PatersonBudd : public FlowLaw {
 public:
-  PatersonBudd(const std::string &prefix,
-               const Config &config,
-               EnthalpyConverter::Ptr EC);
+  PatersonBudd(double exponent, const Config &config, std::shared_ptr<EnthalpyConverter> EC);
   virtual ~PatersonBudd() = default;
 
 protected:

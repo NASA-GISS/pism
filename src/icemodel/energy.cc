@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2011, 2013, 2014, 2015, 2016, 2017, 2018, 2021, 2023 Jed Brown, Ed Bueler and Constantine Khroulev
+// Copyright (C) 2004-2011, 2013, 2014, 2015, 2016, 2017, 2018, 2021, 2023, 2025 Jed Brown, Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -22,7 +22,7 @@
 
 #include "pism/energy/BedThermalUnit.hh"
 #include "pism/util/Grid.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/coupler/SurfaceModel.hh"
 #include "pism/util/EnthalpyConverter.hh"
@@ -35,7 +35,7 @@ namespace pism {
 //! \file energy.cc Methods of IceModel which address conservation of energy.
 //! Common to enthalpy (polythermal) and temperature (cold-ice) methods.
 
-void IceModel::bedrock_thermal_model_step() {
+void IceModel::bedrock_thermal_model_step(double t, double dt) {
 
   const Profiling &profiling = m_ctx->profiling();
 
@@ -52,20 +52,20 @@ void IceModel::bedrock_thermal_model_step() {
                               m_bedtoptemp);
 
   profiling.begin("btu");
-  m_btu->update(m_bedtoptemp, t_TempAge, dt_TempAge);
+  m_btu->update(m_bedtoptemp, t, dt);
   profiling.end("btu");
 }
 
 //! Manage the solution of the energy equation, and related parallel communication.
-void IceModel::energy_step() {
+void IceModel::energy_step(double t, double dt) {
 
   // operator-splitting occurs here (ice and bedrock energy updates are split):
   //   tell BedThermalUnit* btu that we have an ice base temp; it will return
   //   the z=0 value of geothermal flux when called inside temperatureStep() or
   //   enthalpyStep()
-  bedrock_thermal_model_step();
+  bedrock_thermal_model_step(t, dt);
 
-  m_energy_model->update(t_TempAge, dt_TempAge, energy_model_inputs());
+  m_energy_model->update(t, dt, energy_model_inputs());
 
   m_stdout_flags = m_energy_model->stdout_flags() + m_stdout_flags;
 }
@@ -98,7 +98,7 @@ void IceModel::combine_basal_melt_rate(const Geometry &geometry,
 
   double ice_density = m_config->get_number("constants.ice.density");
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double lambda = 1.0;      // 1.0 corresponds to the grounded case
@@ -135,13 +135,13 @@ void bedrock_surface_temperature(const array::Scalar &sea_level,
                               config->get_number("constants.sea_water.density") *
                               config->get_number("constants.standard_gravity")); // K m-1
 
-  EnthalpyConverter::Ptr EC = grid->ctx()->enthalpy_converter();
+  auto EC = grid->ctx()->enthalpy_converter();
 
   array::AccessScope list{&cell_type, &bed_topography, &sea_level, &ice_thickness,
       &ice_surface_temperature, &basal_enthalpy, &result};
   ParallelSection loop(grid->com);
   try {
-    for (auto p = grid->points(); p; p.next()) {
+    for (auto p : grid->points()) {
       const int i = p.i(), j = p.j();
 
       if (cell_type.grounded(i,j)) {

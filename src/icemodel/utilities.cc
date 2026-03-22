@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2019, 2021, 2023, 2024 Jed Brown, Ed Bueler and Constantine Khroulev
+// Copyright (C) 2004-2019, 2021, 2023, 2024, 2025, 2026 Jed Brown, Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -17,16 +17,17 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <cstring>
+#include <memory>
 #include <petscsys.h>
 
 #include "pism/icemodel/IceModel.hh"
 
 #include "pism/util/Grid.hh"
-#include "pism/util/ConfigInterface.hh"
 #include "pism/util/Time.hh"
-#include "pism/util/io/File.hh"
 #include "pism/util/pism_utilities.hh"
 #include "pism/util/pism_signal.h"
+#include "pism/util/io/SynchronousOutputWriter.hh"
+#include "pism/util/io/io_helpers.hh"
 
 namespace pism {
 
@@ -38,7 +39,7 @@ of the output NetCDF file.
 
 Signal `SIGUSR1` makes PISM save state under a filename based on the
 the name of the executable (e.g. `pism`) and the current
-model year.  In addition the time series (`-ts_file`, etc.) is flushed out
+model year.  In addition the time series (`-scalar_file`, etc.) is flushed out
 There is no indication of these actions in the history attribute of the output (`-o`)
 NetCDF file because there is no effect on it, but there is an indication at `stdout`.
 
@@ -50,7 +51,7 @@ int IceModel::process_signals() {
     m_log->message(1,
        "\ncaught signal SIGTERM:  EXITING EARLY and saving with original filename.\n");
 
-    prepend_history(pism::printf("EARLY EXIT caused by signal SIGTERM. Completed timestep at time=%s.",
+    append_history(pism::printf("EARLY EXIT caused by signal SIGTERM. Completed timestep at time=%s.",
                                  m_time->date(m_time->current()).c_str()));
     // Tell the caller that the user requested an early termination of
     // the run.
@@ -65,14 +66,28 @@ int IceModel::process_signals() {
                    file_name.c_str());
     pism_signal = 0;
 
-    File file(m_grid->com,
-              file_name,
-              string_to_backend(m_config->get_string("output.format")),
-              io::PISM_READWRITE_MOVE);
-    save_variables(file, INCLUDE_MODEL_STATE, m_output_vars, m_time->current());
+    std::shared_ptr<OutputWriter> writer =
+        std::make_shared<SynchronousOutputWriter>(m_grid->com, *m_config);
+    writer->initialize({}, true);
+
+    OutputFile file(writer, file_name);
+
+    {
+      define_time(file);
+      define_variables(file, m_output_file_contents);
+    }
+
+    {
+      io::write_config(*m_config, "pism_config", file);
+      file.append_time(m_time->current());
+      write_state(file);
+      write_state_diagnostics(file, m_output_vars);
+      write_diagnostics(file, m_output_vars);
+      write_run_stats(file);
+    }
 
     // flush all the time-series buffers:
-    flush_timeseries();
+    scalar_diagnostics_flush_buffers();
   }
 
   if (pism_signal == SIGUSR2) {
@@ -81,40 +96,15 @@ int IceModel::process_signals() {
     pism_signal = 0;
 
     // flush all the time-series buffers:
-    flush_timeseries();
+    scalar_diagnostics_flush_buffers();
   }
 
   return 0;
 }
 
-
-VariableMetadata IceModel::run_stats() const {
-
-  VariableMetadata result("run_stats", m_sys);
-
-  result["source"]    = std::string("PISM ") + pism::revision;
-  result["long_name"] = "Run statistics";
-
-  // timing stats
-  double
-    wall_clock_hours = pism::wall_clock_hours(m_grid->com, m_start_time),
-    proc_hours       = m_grid->size() * wall_clock_hours,
-    model_years      = units::convert(m_sys, m_time->current() - m_time->start(),
-                                      "seconds", "years");
-
-  result["wall_clock_hours"]               = { wall_clock_hours };
-  result["processor_hours"]                = { proc_hours };
-  result["model_years_per_processor_hour"] = { model_years / proc_hours };
-  result["number_of_time_steps"]           = { (double)m_step_counter };
-
-  return result;
-}
-
 //! Get time and user/host name and add it to the given string.
-void  IceModel::prepend_history(const std::string &str) {
-  m_output_global_attributes.set_string("history",
-                                        username_prefix(m_grid->com) + (str + "\n") +
-                                        m_output_global_attributes.get_string("history"));
+void  IceModel::append_history(const std::string &str) {
+  m_output_history = m_output_history + "\n" + username_prefix(m_grid->com) + str;
 }
 
 //! Return the grid used by this model.

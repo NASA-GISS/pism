@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2022, 2023 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2022, 2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -18,10 +18,11 @@
 
 #include "pism/coupler/frontalmelt/Constant.hh"
 
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/MaxTimestep.hh"
 #include "pism/geometry/Geometry.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace frontalmelt {
@@ -46,7 +47,7 @@ void Constant::update_impl(const FrontalMeltInputs &inputs, double t, double dt)
 
   array::AccessScope list{&cell_type, m_frontal_melt_rate.get()};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (apply(cell_type, i, j)) {

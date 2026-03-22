@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2018, 2020, 2021, 2022, 2023 Jed Brown, Ed Bueler, and Constantine Khroulev
+// Copyright (C) 2004-2018, 2020, 2021, 2022, 2023, 2025, 2026 Jed Brown, Ed Bueler, and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -19,12 +19,13 @@
 #include "pism/rheology/FlowLaw.hh"
 
 #include <petsc.h>
+#include <limits>
 
 #include "pism/util/EnthalpyConverter.hh"
 #include "pism/util/array/Scalar.hh"
 #include "pism/util/array/Array3D.hh"
 
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 
 #include "pism/util/error_handling.hh"
@@ -32,21 +33,22 @@
 namespace pism {
 namespace rheology {
 
-FlowLaw::FlowLaw(const std::string &prefix, const Config &config,
-                 EnthalpyConverter::Ptr ec)
+FlowLaw::FlowLaw(double exponent, const Config &config,
+                 std::shared_ptr<EnthalpyConverter> ec)
   : m_EC(ec) {
 
   if (not m_EC) {
     throw RuntimeError(PISM_ERROR_LOCATION, "EC is NULL in FlowLaw::FlowLaw()");
   }
 
-  m_standard_gravity   = config.get_number("constants.standard_gravity");
+  auto rho = config.get_number("constants.ice.density");
+  auto standard_gravity   = config.get_number("constants.standard_gravity");
+
   m_ideal_gas_constant = config.get_number("constants.ideal_gas_constant");
 
-  m_rho                = config.get_number("constants.ice.density");
-  m_beta_CC_grad       = config.get_number("constants.ice.beta_Clausius_Clapeyron") * m_rho * m_standard_gravity;
-  m_melting_point_temp = config.get_number("constants.fresh_water.melting_point_temperature");
-  m_n                  = config.get_number(prefix + "Glen_exponent");
+  m_rho_g              = rho * standard_gravity;
+  m_beta_CC_grad       = config.get_number("constants.ice.beta_Clausius_Clapeyron") * m_rho_g;
+  m_n                  = exponent;
   m_viscosity_power    = (1.0 - m_n) / (2.0 * m_n);
   m_hardness_power     = -1.0 / m_n;
 
@@ -67,7 +69,7 @@ std::string FlowLaw::name() const {
   return m_name;
 }
 
-EnthalpyConverter::Ptr FlowLaw::EC() const {
+std::shared_ptr<EnthalpyConverter> FlowLaw::EC() const {
   return m_EC;
 }
 
@@ -131,7 +133,13 @@ void FlowLaw::hardness_n_impl(const double *enthalpy, const double *pressure,
 }
 
 double FlowLaw::hardness_impl(double E, double p) const {
-  return pow(softness(E, p), m_hardness_power);
+  double A = softness(E, p);
+#if (Pism_DEBUG == 1)
+  if (A == 0.0) {
+    return std::numeric_limits<double>::max();
+  }
+#endif
+  return pow(A, m_hardness_power);
 }
 
 //! \brief Computes the regularized effective viscosity and its derivative with respect to the
@@ -189,7 +197,7 @@ void averaged_hardness_vec(const FlowLaw &ice,
 
   ParallelSection loop(grid.com);
   try {
-    for (auto p = grid.points(); p; p.next()) {
+    for (auto p : grid.points()) {
       const int i = p.i(), j = p.j();
 
       // Evaluate column integrals in flow law at every quadrature point's column

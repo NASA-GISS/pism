@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 #
-# Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2018, 2019, 2020, 2021, 2022, 2023, 2024 David Maxwell and Constantine Khroulev
+# Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025 David Maxwell and Constantine Khroulev
 #
 # This file is part of PISM.
 #
@@ -80,13 +80,16 @@ if __name__ == '__main__':
     * -i is required
   """ % (sys.argv[0], sys.argv[0])
 
-    PISM.show_usage_check_req_opts(context.log, sys.argv[0], ["-i"], usage)
+    PISM.maybe_show_usage(context.log, sys.argv[0], usage)
 
     config = context.config
     if not PISM.OptionString("-ssa_method", "").is_set():
         config.set_string("stress_balance.ssa.method", "fem")
 
     input_file_name = config.get_string("input.file")
+    if len(input_file_name) == 0:
+        import sys
+        sys.exit(1)
 
     config.set_string("output.file", "make_synth_ssa.nc", PISM.CONFIG_DEFAULT)
     output_file_name = config.get_string("output.file")
@@ -176,11 +179,10 @@ if __name__ == '__main__':
         # Generate a prior guess for hardav
 
         EC = PISM.EnthalpyConverter(config)
-        ice_factory = PISM.IceFlowLawFactory(grid.com, "stress_balance.ssa.", config, EC)
-        ice_factory.removeType(PISM.ICE_GOLDSBY_KOHLSTEDT)
-        ice_factory.setType(config.get_string("stress_balance.ssa.flow_law"))
-        ice_factory.setFromOptions()
-        flow_law = ice_factory.create()
+        ice_factory = PISM.IceFlowLawFactory(config, EC)
+        ice_factory.remove(PISM.ICE_GOLDSBY_KOHLSTEDT)
+        flow_law = ice_factory.create(config.get_string("stress_balance.ssa.flow_law"),
+                                      config.get_number("stress_balance.ssa.Glen_exponent"))
         averaged_hardness_vec(flow_law, vecs.land_ice_thickness, vecs.enthalpy, vecs.hardav)
 
         if design_prior_const is not None:
@@ -243,6 +245,5 @@ if __name__ == '__main__':
     F.close()
 
     vecs.write(output_file_name)
-
     # Save time & command line
     PISM.util.writeProvenance(output_file_name)

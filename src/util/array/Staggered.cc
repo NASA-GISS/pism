@@ -1,4 +1,4 @@
-/* Copyright (C) 2022, 2023 PISM Authors
+/* Copyright (C) 2022, 2023, 2025, 2026 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -29,13 +29,13 @@ namespace pism {
 namespace array {
 
 Staggered::Staggered(std::shared_ptr<const Grid> grid, const std::string &name)
-  : Array(grid, name, WITHOUT_GHOSTS, 2, 1, {0.0}) {
+    : Array(grid, name, WITHOUT_GHOSTS, 2, 1, {}) {
   set_begin_access_use_dof(true);
 }
 
 Staggered::Staggered(std::shared_ptr<const Grid> grid, const std::string &name,
                      unsigned int stencil_width)
-  : Array(grid, name, WITH_GHOSTS, 2, stencil_width, {0.0}){
+    : Array(grid, name, WITH_GHOSTS, 2, stencil_width, {}) {
   set_begin_access_use_dof(true);
 }
 
@@ -45,7 +45,7 @@ void Staggered::copy_from(const Staggered &input) {
 
   ParallelSection loop(grid()->com);
   try {
-    for (auto p = grid()->points(); p; p.next()) {
+    for (auto p : grid()->points()) {
       const int i = p.i(), j = p.j();
 
       (*this)(i, j, 0) = input(i, j, 0);
@@ -71,7 +71,7 @@ std::array<double,2> absmax(const array::Staggered &input) {
   double z[2] = {0.0, 0.0};
 
   array::AccessScope list(input);
-  for (auto p = input.grid()->points(); p; p.next()) {
+  for (auto p : input.grid()->points()) {
     const int i = p.i(), j = p.j();
 
     z[0] = std::max(z[0], std::abs(input(i, j, 0)));
@@ -96,12 +96,12 @@ void staggered_to_regular(const array::CellType1 &cell_type,
 
   array::AccessScope list{&cell_type, &input, &result};
 
-  for (auto p = grid->points(); p; p.next()) {
+  for (auto p : grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (cell_type.grounded_ice(i, j) or
         (include_floating_ice and cell_type.icy(i, j))) {
-      auto M = cell_type.star(i, j);
+      auto M = cell_type.star_int(i, j);
       auto F = input.star(i, j);
 
       int n = 0, e = 0, s = 0, w = 0;
@@ -143,7 +143,7 @@ void staggered_to_regular(const array::CellType1 &cell_type,
 
   array::AccessScope list{&cell_type, &input, &result};
 
-  for (auto p = grid->points(); p; p.next()) {
+  for (auto p : grid->points()) {
     const int i = p.i(), j = p.j();
 
     auto M = cell_type.star(i, j);

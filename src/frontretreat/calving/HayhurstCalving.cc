@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2019, 2021, 2022, 2023 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -22,6 +22,7 @@
 #include "pism/util/Grid.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/util/array/CellType.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace calving {
@@ -78,7 +79,7 @@ void HayhurstCalving::update(const array::CellType1 &cell_type,
   array::AccessScope list{&ice_thickness, &cell_type, &m_calving_rate, &sea_level,
                                &bed_elevation};
 
-  for (auto pt = m_grid->points(); pt; pt.next()) {
+  for (auto pt : m_grid->points()) {
     const int i = pt.i(), j = pt.j();
 
     double water_depth = sea_level(i, j) - bed_elevation(i, j);
@@ -124,7 +125,7 @@ void HayhurstCalving::update(const array::CellType1 &cell_type,
 
   m_calving_rate.update_ghosts();
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (cell_type.ice_free(i, j) and cell_type.next_to_ice(i, j) ) {
@@ -152,7 +153,7 @@ const array::Scalar &HayhurstCalving::calving_rate() const {
   return m_calving_rate;
 }
 
-DiagnosticList HayhurstCalving::diagnostics_impl() const {
+DiagnosticList HayhurstCalving::spatial_diagnostics_impl() const {
   return {{"hayhurst_calving_rate", Diagnostic::wrap(m_calving_rate)}};
 }
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2023 PISM Authors
+/* Copyright (C) 2015, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -24,9 +24,9 @@
 namespace pism {
 namespace rheology {
 
-PatersonBuddWarm::PatersonBuddWarm(const std::string &prefix,
-                   const Config &config, EnthalpyConverter::Ptr ec)
-  : PatersonBudd(prefix, config, ec) {
+PatersonBuddWarm::PatersonBuddWarm(double exponent,
+                   const Config &config, std::shared_ptr<EnthalpyConverter> ec)
+  : PatersonBudd(exponent, config, ec) {
   m_name = "Paterson-Budd (warm case)";
 }
 

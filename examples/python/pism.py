@@ -63,7 +63,7 @@ class PythonOceanModel(PISM.PyOceanModel):
                 pressure = ice_density * g * depth[i, j]
                 result[i, j] = T0 - beta_CC * pressure;
 
-    def update(self, geometry, t, dt):
+    def update(self, inputs, t, dt):
         """Perform a time step from `t` to `t + dt` [seconds]. Needs to update its state and
         data provided to PISM.
 
@@ -81,10 +81,10 @@ class PythonOceanModel(PISM.PyOceanModel):
 
             self.shelf_base_mass_flux.set(mass_flux)
 
-            PISM.compute_average_water_column_pressure(geometry, ice_density, water_density, g,
+            PISM.compute_average_water_column_pressure(inputs.geometry, ice_density, water_density, g,
                                                        self.water_column_pressure);
 
-            self.melting_point_temperature(geometry.ice_thickness, self.shelf_base_temperature)
+            self.melting_point_temperature(inputs.geometry.ice_thickness, self.shelf_base_temperature)
         except Exception:
             traceback.print_exc()
             raise
@@ -98,18 +98,17 @@ class PythonOceanModel(PISM.PyOceanModel):
             traceback.print_exc()
             raise
 
-    def define_model_state(self, output):
-        "Define model state variables in the file `output`."
+    def state(self):
         try:
             # This model does not have a state but this code shows how to define the state
             # in models that do.
-            self.shelf_base_temperature.define(output, PISM.PISM_DOUBLE)
-            self.shelf_base_mass_flux.define(output, PISM.PISM_DOUBLE)
+            return PISM.VariableSet([self.shelf_base_temperature.metadata(0),
+                                     self.shelf_base_mass_flux.metadata(0)])
         except Exception:
             traceback.print_exc()
             raise
 
-    def write_model_state(self, output):
+    def write_state(self, output):
         "Write model state variables to the file `output`."
         try:
             # This model does not have a state but this code shows how to save the state
@@ -133,9 +132,13 @@ def main():
         * option -i is required
       """
 
-    if PISM.show_usage_check_req_opts(context.log(), "PISM (basic evolution run mode)" ,
-                                      ["-i"], usage):
+    if PISM.maybe_show_usage(context.log(), "PISM (basic evolution run mode)" , usage):
         return
+
+    input_file = context.config().get_string("input.file")
+    if len(input_file) == 0:
+        import sys
+        sys.exit(1)
 
     grid = PISM.Grid.FromOptions(context)
 
@@ -160,7 +163,7 @@ def main():
 
     model.run()
 
-    model.save_results()
+    model.write_final_output()
 
 def standalone_test():
     context = PISM.Context().ctx
@@ -171,6 +174,8 @@ def standalone_test():
     grid.report_parameters()
 
     geometry = PISM.Geometry(grid)
+    ocean_inputs = PISM.OceanInputs()
+    ocean_inputs.geometry = geometry
 
     ocean = PythonOceanModel(grid, standalone=True)
 
@@ -185,7 +190,7 @@ def standalone_test():
 
     ocean.init(geometry)
 
-    ocean.update(geometry, 0, 86400)
+    ocean.update(ocean_inputs, 0, 86400)
 
     ocean.shelf_base_temperature.dump("shelf_base_temperature.nc")
 

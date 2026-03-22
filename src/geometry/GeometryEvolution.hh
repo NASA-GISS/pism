@@ -73,7 +73,7 @@ public:
   // "regional" setup
   virtual void set_no_model_mask(const array::Scalar &mask);
 protected:
-  std::map<std::string,Diagnostic::Ptr> diagnostics_impl() const;
+  std::map<std::string,Diagnostic::Ptr> spatial_diagnostics_impl() const;
 
   virtual void init_impl(const InputOptions &opts);
 
@@ -90,7 +90,7 @@ protected:
                                          array::Scalar       &ice_thickness,
                                          array::CellType1    &cell_type,
                                          array::Scalar       &area_specific_volume,
-                                         array::Scalar       &residual,
+                                         array::Scalar1      &residual,
                                          bool                &done);
 
   virtual void compute_interface_fluxes(const array::CellType1 &cell_type,

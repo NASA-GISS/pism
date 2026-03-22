@@ -35,6 +35,7 @@
 #include "pism/util/petscwrappers/DM.hh"
 #include "pism/util/petscwrappers/Vec.hh"
 #include "pism/util/petscwrappers/Viewer.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace stressbalance {
@@ -291,7 +292,7 @@ void SSAFEM::cache_inputs(const Inputs &inputs) {
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       double thickness = inputs.geometry->ice_thickness(i, j);
@@ -754,7 +755,7 @@ void SSAFEM::compute_local_function(Vector2d const *const *const velocity_global
   // Set the boundary contribution of the residual. This is computed at the nodes, so we don't want
   // to set it using Element::add_contribution() because that would lead to
   // double-counting. Also note that without CFBC m_boundary_integral is exactly zero.
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     residual_global[j][i] = m_boundary_integral(i, j);
@@ -924,7 +925,7 @@ void SSAFEM::monitor_function(Vector2d const *const *const velocity_global,
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       ierr = PetscSynchronizedPrintf(m_grid->com,

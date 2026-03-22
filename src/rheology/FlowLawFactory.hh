@@ -1,4 +1,4 @@
-// Copyright (C) 2009--2015, 2017, 2018, 2021, 2023 Jed Brown, Ed Bueler and Constantine Khroulev
+// Copyright (C) 2009--2015, 2017, 2018, 2021, 2023, 2025 Jed Brown, Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -24,7 +24,7 @@
 #include <memory>
 
 #include "pism/rheology/FlowLaw.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 
 namespace pism {
 namespace rheology {
@@ -37,24 +37,20 @@ namespace rheology {
 #define ICE_GOLDSBY_KOHLSTEDT "gk"  /* Goldsby-Kohlstedt for SIA */
 #define ICE_ARRWARM "arrwarm"       /* Temperature dependent Arrhenius (should be refactored into ICE_ARR) */
 
-typedef FlowLaw*(*FlowLawCreator)(const std::string &,
-                                  const Config &, EnthalpyConverter::Ptr);
+typedef FlowLaw *(*FlowLawCreator)(double, const Config &, std::shared_ptr<EnthalpyConverter>);
 
 class FlowLawFactory {
 public:
-  FlowLawFactory(const std::string &prefix,
-                 Config::ConstPtr conf,
-                 EnthalpyConverter::Ptr my_EC);
+  FlowLawFactory(std::shared_ptr<const Config> conf,
+                 std::shared_ptr<EnthalpyConverter> my_EC);
   ~FlowLawFactory() = default;
-  void set_default(const std::string &name);
   void add(const std::string &name, FlowLawCreator);
   void remove(const std::string &name);
-  std::shared_ptr<FlowLaw> create();
+  std::shared_ptr<FlowLaw> create(const std::string &type_name, double exponent);
 private:
-  std::string m_type_name, m_prefix;
   std::map<std::string, FlowLawCreator> m_flow_laws;
-  const Config::ConstPtr m_config;
-  EnthalpyConverter::Ptr m_EC;
+  std::shared_ptr<const Config> m_config;
+  std::shared_ptr<EnthalpyConverter> m_EC;
 };
 
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2017, 2019, 2020, 2021, 2022, 2023 Jed Brown, Ed Bueler and Constantine Khroulev
+// Copyright (C) 2004-2017, 2019, 2020, 2021, 2022, 2023, 2025, 2026 Jed Brown, Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -22,7 +22,7 @@
 
 #include "pism/icemodel/IceModel.hh"
 #include "pism/util/Grid.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Time.hh"
 #include "pism/util/MaxTimestep.hh"
 #include "pism/stressbalance/StressBalance.hh"
@@ -158,9 +158,9 @@ IceModel::TimesteppingInfo IceModel::max_timestep(unsigned int counter) {
 
   // reporting
   {
-    restrictions.push_back(ts_max_timestep(current_time));
-    restrictions.push_back(extras_max_timestep(current_time));
-    restrictions.push_back(save_max_timestep(current_time));
+    restrictions.push_back(scalar_diagnostics_max_timestep(current_time));
+    restrictions.push_back(spatial_diagnostics_max_timestep(current_time));
+    restrictions.push_back(snapshots_max_timestep(current_time));
   }
 
   // mass continuity stability criteria
@@ -222,7 +222,7 @@ IceModel::TimesteppingInfo IceModel::max_timestep(unsigned int counter) {
     // "max" and "end of the run" limit the "big" time-step (in
     // the context of the "skipping" mechanism), so we might need to
     // reset the skip_counter_result to 1.
-    if (member(dt_max.description(), {max, end}) and counter > 1) {
+    if (set_member(dt_max.description(), {max, end}) and counter > 1) {
       result.skip_counter = 1;
     }
   }

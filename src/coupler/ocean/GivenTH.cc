@@ -22,10 +22,12 @@
 #include "pism/coupler/ocean/GivenTH.hh"
 #include "pism/coupler/util/options.hh"
 #include "pism/geometry/Geometry.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/Time.hh"
 #include "pism/util/array/Forcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace ocean {
@@ -124,7 +126,9 @@ void GivenTH::init_impl(const Geometry &geometry) {
 
   // read time-independent data right away:
   if (m_theta_ocean->buffer_size() == 1 && m_salinity_ocean->buffer_size() == 1) {
-    update(geometry, time().current(), 0); // dt is irrelevant
+    Inputs inputs;
+    inputs.geometry = &geometry;
+    update(inputs, time().current(), 0); // dt is irrelevant
   }
 
   const double
@@ -136,7 +140,7 @@ void GivenTH::init_impl(const Geometry &geometry) {
                                            *m_water_column_pressure);
 }
 
-void GivenTH::update_impl(const Geometry &geometry, double t, double dt) {
+void GivenTH::update_impl(const Inputs &inputs, double t, double dt) {
   m_theta_ocean->update(t, dt);
   m_salinity_ocean->update(t, dt);
 
@@ -145,7 +149,7 @@ void GivenTH::update_impl(const Geometry &geometry, double t, double dt) {
 
   Constants c(*m_config);
 
-  const array::Scalar &ice_thickness = geometry.ice_thickness;
+  const array::Scalar &ice_thickness = inputs.geometry->ice_thickness;
 
   array::Scalar &temperature = *m_shelf_base_temperature;
   array::Scalar &mass_flux = *m_shelf_base_mass_flux;
@@ -153,7 +157,7 @@ void GivenTH::update_impl(const Geometry &geometry, double t, double dt) {
   array::AccessScope list{ &ice_thickness, m_theta_ocean.get(), m_salinity_ocean.get(),
       &temperature, &mass_flux};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double potential_temperature_celsius = (*m_theta_ocean)(i,j) - 273.15;
@@ -182,8 +186,8 @@ void GivenTH::update_impl(const Geometry &geometry, double t, double dt) {
     water_density = m_config->get_number("constants.sea_water.density"),
     g             = m_config->get_number("constants.standard_gravity");
 
-  compute_average_water_column_pressure(geometry, ice_density, water_density, g,
-                                           *m_water_column_pressure);
+  compute_average_water_column_pressure(*inputs.geometry, ice_density, water_density, g,
+                                        *m_water_column_pressure);
 }
 
 MaxTimestep GivenTH::max_timestep_impl(double t) const {

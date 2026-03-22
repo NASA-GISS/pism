@@ -1,4 +1,4 @@
-// Copyright (C) 2008-2019, 2021, 2022, 2023, 2024 Ed Bueler, Constantine Khroulev, Ricarda Winkelmann,
+// Copyright (C) 2008-2019, 2021, 2022, 2023, 2024, 2025 Ed Bueler, Constantine Khroulev, Ricarda Winkelmann,
 // Gudfinna Adalgeirsdottir, Andy Aschwanden and Torsten Albrecht
 //
 // This file is part of PISM.
@@ -18,10 +18,11 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "pism/coupler/ocean/ConstantPIK.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/MaxTimestep.hh"
 #include "pism/geometry/Geometry.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace ocean {
@@ -51,9 +52,10 @@ MaxTimestep PIK::max_timestep_impl(double t) const {
   return MaxTimestep("ocean PIK");
 }
 
-void PIK::update_impl(const Geometry &geometry, double t, double dt) {
+void PIK::update_impl(const Inputs &inputs, double t, double dt) {
   (void) t;
   (void) dt;
+  const auto &geometry = *inputs.geometry;
 
   const array::Scalar &H = geometry.ice_thickness;
 
@@ -69,7 +71,7 @@ void PIK::update_impl(const Geometry &geometry, double t, double dt) {
     g             = m_config->get_number("constants.standard_gravity");
 
   compute_average_water_column_pressure(geometry, ice_density, water_density, g,
-                                           *m_water_column_pressure);
+                                        *m_water_column_pressure);
 }
 
 /*!
@@ -85,7 +87,7 @@ void PIK::melting_point_temperature(const array::Scalar &depth,
 
   array::AccessScope list{&depth, &result};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
     const double pressure = ice_density * g * depth(i,j); // FIXME task #7297
     // result is set to melting point at depth
@@ -112,7 +114,7 @@ void PIK::mass_flux(const array::Scalar &ice_thickness, array::Scalar &result) c
 
   array::AccessScope list{&ice_thickness, &result};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     // compute T_f(i, j) according to beckmann_goosse03, which has the

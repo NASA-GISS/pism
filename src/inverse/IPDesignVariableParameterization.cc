@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2020, 2022, 2023 David Maxwell
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2020, 2022, 2023, 2025 David Maxwell
 //
 // This file is part of PISM.
 //
@@ -21,7 +21,7 @@
 
 #include "pism/util/array/Scalar.hh"
 #include "pism/inverse/IPDesignVariableParameterization.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/util/pism_utilities.hh"
@@ -58,7 +58,7 @@ void IPDesignVariableParameterization::convertToDesignVariable(array::Scalar &ze
 
   ParallelSection loop(grid.com);
   try {
-    for (auto p = grid.points(); p; p.next()) {
+    for (auto p : grid.points()) {
       const int i = p.i(), j = p.j();
 
       this->toDesignVariable(zeta(i, j), &d(i, j), NULL);
@@ -90,7 +90,7 @@ void IPDesignVariableParameterization::convertFromDesignVariable(array::Scalar &
 
   ParallelSection loop(grid.com);
   try {
-    for (auto p = grid.points(); p; p.next()) {
+    for (auto p : grid.points()) {
       const int i = p.i(), j = p.j();
 
       this->fromDesignVariable(d(i, j), &zeta(i, j));

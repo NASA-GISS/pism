@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2022, 2023, 2024 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2022, 2023, 2024, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -19,13 +19,16 @@
 #include "pism/coupler/surface/ForceThickness.hh"
 #include "pism/util/Grid.hh"
 
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/util/array/CellType.hh"
 #include "pism/util/MaxTimestep.hh"
 #include "pism/util/io/File.hh"
 #include "pism/geometry/Geometry.hh"
 #include "pism/util/Interpolation1D.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
+#include "pism/util/pism_utilities.hh"
 
 namespace pism {
 namespace surface {
@@ -47,7 +50,7 @@ ForceThickness::ForceThickness(std::shared_ptr<const Grid> g, std::shared_ptr<Su
   m_ftt_mask.metadata(0)
       .long_name("mask specifying where to apply the force-to-thickness mechanism")
       .set_output_type(io::PISM_INT)
-      .set_time_independent(true);
+      .set_time_dependent(false);
 
   m_ftt_mask.set(1.0); // default: applied in whole domain
 
@@ -189,27 +192,27 @@ PISM="${PISM_PREFIX}${PISM_EXEC}"
 
 cmd="$PISM_MPIDO $NN $PISM -ys -1000.0 -ye 0 -skip 5 -i green_ssl2_110ka.nc -atmosphere searise_greenland \
     -surface pdd -pdd_fausto \
-    -o no_force.nc -ts_file ts_no_force.nc -ts_times -1000:yearly:0"
+    -o no_force.nc -scalar_file ts_no_force.nc -scalar_times -1000:yearly:0"
 $PISM_DO $cmd
 
 echo
 
 cmd="$PISM_MPIDO $NN $PISM -ys -1000.0 -ye 0 -skip 5 -i green_ssl2_110ka.nc -atmosphere searise_greenland \
   -surface pdd,forcing -pdd_fausto -force_to_thickness_file green20km_y1.nc \
-  -o default_force.nc -ts_file ts_default_force.nc -ts_times -1000:yearly:0"
+  -o default_force.nc -scalar_file ts_default_force.nc -scalar_times -1000:yearly:0"
 $PISM_DO $cmd
 
 echo
 
 cmd="$PISM_MPIDO $NN $PISM -ys -1000.0 -ye 0 -skip 5 -i green_ssl2_110ka.nc -atmosphere searise_greenland \
     -surface pdd,forcing -pdd_fausto -force_to_thickness_file green20km_y1.nc -force_to_thickness_alpha 0.005 \
-    -o weak_force.nc -ts_file ts_weak_force.nc -ts_times -1000:yearly:0"
+    -o weak_force.nc -scalar_file ts_weak_force.nc -scalar_times -1000:yearly:0"
 $PISM_DO $cmd
 
 
 cmd="$PISM_MPIDO $NN $PISM -ys -1000.0 -ye 0 -skip 5 -i green_ssl2_110ka.nc -atmosphere searise_greenland \
     -surface pdd,forcing -pdd_fausto -force_to_thickness_file green20km_y1.nc -force_to_thickness_alpha 0.05 \
-    -o strong_force.nc -ts_file ts_strong_force.nc -ts_times -1000:yearly:0"
+    -o strong_force.nc -scalar_file ts_strong_force.nc -scalar_times -1000:yearly:0"
 $PISM_DO $cmd
 
 \endcode
@@ -233,7 +236,7 @@ void ForceThickness::adjust_mass_flux(double time,
   array::AccessScope list{&cell_type, &ice_thickness,
       &m_target_thickness, &m_ftt_mask, &result};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (m_ftt_mask(i,j) > 0.5 and cell_type.grounded(i, j)) {
@@ -296,21 +299,21 @@ MaxTimestep ForceThickness::max_timestep_impl(double my_t) const {
   return std::min(input_max_dt, MaxTimestep(max_dt, "surface forcing"));
 }
 
-void ForceThickness::define_model_state_impl(const File &output) const {
-  m_ftt_mask.define(output, io::PISM_DOUBLE);
-  m_target_thickness.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> ForceThickness::state_impl() const {
+  auto variables = array::metadata({&m_ftt_mask, &m_target_thickness});
 
-  if (m_input_model != NULL) {
-    m_input_model->define_model_state(output);
+  if (m_input_model != nullptr) {
+    return pism::combine(m_input_model->state(), variables);
   }
+  return variables;
 }
 
-void ForceThickness::write_model_state_impl(const File &output) const {
+void ForceThickness::write_state_impl(const OutputFile &output) const {
   m_ftt_mask.write(output);
   m_target_thickness.write(output);
 
   if (m_input_model != NULL) {
-    m_input_model->write_model_state(output);
+    m_input_model->write_state(output);
   }
 }
 

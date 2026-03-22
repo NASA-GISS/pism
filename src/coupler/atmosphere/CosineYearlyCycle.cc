@@ -1,4 +1,4 @@
-// Copyright (C) 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2021, 2023 PISM Authors
+// Copyright (C) 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2021, 2023, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -17,16 +17,15 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "pism/coupler/atmosphere/CosineYearlyCycle.hh"
-#include "pism/util/Time.hh"
-#include "pism/util/pism_options.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
-#include "pism/util/io/File.hh"
 
 #include "pism/util/error_handling.hh"
 #include "pism/util/MaxTimestep.hh"
 
 #include "pism/util/ScalarForcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace atmosphere {

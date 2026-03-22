@@ -18,7 +18,7 @@
 
 #include "pism/inverse/IP_SSAHardavForwardProblem.hh"
 #include "pism/util/Grid.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Vars.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/rheology/FlowLaw.hh"
@@ -28,6 +28,7 @@
 #include "pism/util/petscwrappers/Vec.hh"
 #include "pism/util/fem/Quadrature.hh"
 #include "pism/util/fem/DirichletData.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace inverse {
@@ -149,7 +150,7 @@ void IP_SSAHardavForwardProblem::set_design(array::Scalar &new_zeta) {
   // Cache hardav at the quadrature points.
   array::AccessScope list{&m_coefficients, &m_hardav};
 
-  for (auto p = m_grid->points(1); p; p.next()) {
+  for (auto p : m_grid->points_with_ghosts(1)) {
     const int i = p.i(), j = p.j();
     m_coefficients(i, j).hardness = m_hardav(i, j);
   }
@@ -266,7 +267,7 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design(array::Vector &u,
   list.add(*dzeta_local);
 
   // Zero out the portion of the function we are responsible for computing.
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     du_a[j][i].u = 0.0;
@@ -402,7 +403,7 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design_transpose(array::Vector &
                                                                  array::Vector &du,
                                                                  Vec dzeta) {
 
-  petsc::DM::Ptr da2 = m_grid->get_dm(1, m_config->get_number("grid.max_stencil_width"));
+  auto da2 = m_grid->get_dm(1, m_config->get_number("grid.max_stencil_width"));
   petsc::DMDAVecArray dzeta_a(da2, dzeta);
   this->apply_jacobian_design_transpose(u, du, (double**)dzeta_a.get());
 }
@@ -465,7 +466,7 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design_transpose(array::Vector &
                                         dirichletWeight);
 
   // Zero out the portion of the function we are responsible for computing.
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     dzeta_a[j][i] = 0;
@@ -547,7 +548,7 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design_transpose(array::Vector &
   }
   loop.check();
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double dB_dzeta;

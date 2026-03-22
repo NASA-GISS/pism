@@ -1,4 +1,4 @@
-// Copyright (C) 2010--2023 Constantine Khroulev and Ed Bueler
+// Copyright (C) 2010--2023, 2025 Constantine Khroulev and Ed Bueler
 //
 // This file is part of PISM.
 //
@@ -24,6 +24,7 @@
 #include "pism/util/Vars.hh"
 #include "pism/util/array/CellType.hh"
 #include "pism/util/error_handling.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace stressbalance {
@@ -83,7 +84,7 @@ double ShallowStressBalance::flow_enhancement_factor() const {
   return m_e_factor;
 }
 
-EnthalpyConverter::Ptr ShallowStressBalance::enthalpy_converter() const {
+std::shared_ptr<EnthalpyConverter> ShallowStressBalance::enthalpy_converter() const {
   return m_EC;
 }
 
@@ -102,7 +103,7 @@ const array::Scalar& ShallowStressBalance::basal_frictional_heating() {
 }
 
 
-DiagnosticList ShallowStressBalance::diagnostics_impl() const {
+DiagnosticList ShallowStressBalance::spatial_diagnostics_impl() const {
   DiagnosticList result = {
     {"beta",     Diagnostic::Ptr(new SSB_beta(this))},
     {"taub",     Diagnostic::Ptr(new SSB_taub(this))},
@@ -122,9 +123,10 @@ DiagnosticList ShallowStressBalance::diagnostics_impl() const {
 ZeroSliding::ZeroSliding(std::shared_ptr<const Grid> g)
   : ShallowStressBalance(g) {
 
+  rheology::FlowLawFactory ice_factory(m_config, m_EC);
   // Use the SIA flow law.
-  rheology::FlowLawFactory ice_factory("stress_balance.sia.", m_config, m_EC);
-  m_flow_law = ice_factory.create();
+  m_flow_law = ice_factory.create(m_config->get_string("stress_balance.sia.flow_law"),
+                                  m_config->get_number("stress_balance.sia.Glen_exponent"));
 }
 
 //! \brief Update the trivial shallow stress balance object.
@@ -153,7 +155,7 @@ void ShallowStressBalance::compute_basal_frictional_heating(const array::Vector 
 
   array::AccessScope list{&V, &result, &tauc, &mask};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (mask.ocean(i,j)) {
@@ -173,7 +175,7 @@ SSB_taud::SSB_taud(const ShallowStressBalance *m)
   : Diag<ShallowStressBalance>(m) {
 
   // set metadata:
-  m_vars = { { m_sys, "taud_x" }, { m_sys, "taud_y" } };
+  m_vars = { { m_sys, "taud_x", *m_grid }, { m_sys, "taud_y", *m_grid } };
   m_vars[0].long_name("X-component of the driving shear stress at the base of ice");
   m_vars[1].long_name("Y-component of the driving shear stress at the base of ice");
 
@@ -200,7 +202,7 @@ std::shared_ptr<array::Array> SSB_taud::compute_impl() const {
 
   array::AccessScope list{ surface, thickness, result.get() };
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double pressure = ice_density * standard_gravity * (*thickness)(i, j);
@@ -217,7 +219,7 @@ std::shared_ptr<array::Array> SSB_taud::compute_impl() const {
 }
 
 SSB_taud_mag::SSB_taud_mag(const ShallowStressBalance *m) : Diag<ShallowStressBalance>(m) {
-  m_vars = { { m_sys, "taud_mag" } };
+  m_vars = { { m_sys, "taud_mag", *m_grid } };
   m_vars[0]
       .long_name("magnitude of the gravitational driving stress at the base of ice")
       .units("Pa");
@@ -234,7 +236,7 @@ std::shared_ptr<array::Array> SSB_taud_mag::compute_impl() const {
 }
 
 SSB_taub::SSB_taub(const ShallowStressBalance *m) : Diag<ShallowStressBalance>(m) {
-  m_vars = { { m_sys, "taub_x" }, { m_sys, "taub_y" } };
+  m_vars = { { m_sys, "taub_x", *m_grid }, { m_sys, "taub_y", *m_grid } };
 
   m_vars[0].long_name("X-component of the shear stress at the base of ice");
   m_vars[1].long_name("Y-component of the shear stress at the base of ice");
@@ -257,7 +259,7 @@ std::shared_ptr<array::Array> SSB_taub::compute_impl() const {
   const IceBasalResistancePlasticLaw *basal_sliding_law = model->sliding_law();
 
   array::AccessScope list{ tauc, &velocity, &mask, result.get() };
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (mask.grounded_ice(i, j)) {
@@ -275,7 +277,7 @@ SSB_taub_mag::SSB_taub_mag(const ShallowStressBalance *m) : Diag<ShallowStressBa
 
   auto ismip6 = m_config->get_flag("output.ISMIP6");
 
-  m_vars = { { m_sys, ismip6 ? "strbasemag" : "taub_mag" } };
+  m_vars = { { m_sys, ismip6 ? "strbasemag" : "taub_mag", *m_grid } };
   m_vars[0]
       .long_name("magnitude of the basal shear stress at the base of ice")
       .standard_name("land_ice_basal_drag") // ISMIP6 "standard" name
@@ -323,7 +325,7 @@ void PrescribedSliding::init_impl() {
 }
 
 SSB_beta::SSB_beta(const ShallowStressBalance *m) : Diag<ShallowStressBalance>(m) {
-  m_vars = { { m_sys, "beta" } };
+  m_vars = { { m_sys, "beta", *m_grid } };
   m_vars[0].long_name("basal drag coefficient").units("Pa s / m");
 }
 
@@ -337,7 +339,7 @@ std::shared_ptr<array::Array> SSB_beta::compute_impl() const {
   const array::Vector &velocity = model->velocity();
 
   array::AccessScope list{tauc, &velocity, result.get()};
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     (*result)(i,j) =  basal_sliding_law->drag((*tauc)(i,j), velocity(i,j).u, velocity(i,j).v);

@@ -1,4 +1,4 @@
-/* Copyright (C) 2014, 2015, 2016, 2017, 2018, 2021, 2024 PISM Authors
+/* Copyright (C) 2015, 2016, 2017, 2018, 2021, 2022, 2023, 2024, 2025, 2026 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -15,80 +15,186 @@
  * You should have received a copy of the GNU General Public License
  * along with PISM; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ */
 
-#ifndef _PISMCONFIG_H_
-#define _PISMCONFIG_H_
+#ifndef _PISM_CONFIG_H_
+#define _PISM_CONFIG_H_
 
-#include <string>
+#include <memory>
 #include <set>
+#include <map>
+#include <string>
+#include <vector>
+#include <utility>              // std::pair
 
-#include "pism/util/ConfigInterface.hh"
+#include <mpi.h>                // MPI_Comm
+
 #include "pism/util/VariableMetadata.hh"
+#include "pism/util/Units.hh"
 
 namespace pism {
 
+class File;
+class OutputFile;
 class Logger;
 
-//! A class for reading, writing and accessing PISM configuration flags and parameters.
-class NetCDFConfig : public Config {
+
+//! Flag used by `set_...()` methods.
+/** Meanings:
+ *
+ * - `DEFAULT`: set the default value; has no effect if a parameter was set by a user at the time
+ *   of the call
+ * - `FORCE`: forcibly set a parameter; unconditionally overrides previous values
+ * - `USER`: forcibly set a parameter; unconditionally overrides previous values and marks this
+ *   parameter as set by the user. This affects future `set_...()` calls using the `DEFAULT` flag
+ *   value and results of `parameters_set_by_user()`.
+ */
+enum ConfigSettingFlag {CONFIG_DEFAULT = 0, CONFIG_FORCE = 1, CONFIG_USER = 2};
+
+
+//! A class for storing and accessing PISM configuration flags and parameters.
+class Config {
 public:
-  NetCDFConfig(MPI_Comm com, const std::string &name, units::System::Ptr unit_system);
-  ~NetCDFConfig();
+  Config(std::shared_ptr<units::System> unit_system);
+  virtual ~Config();
 
-protected:
-  void read_impl(const File &file);
-  void write_impl(const File &file) const;
+  //! Flag used by `get_...()` methods.
+  /** Meanings:
+   *
+   * - `REMEMBER_THIS_USE` (the default): add the name of a parameter to the list of parameters used
+   *    by a model run.
+   * - `FORGET_THIS_USE`: don't add the name of a parameter to the list of used parameters. This is
+   *    necessary to be able to get the current value of a parameter to be used as the default when
+   *    processing a command-line option.
+   */
+  enum UseFlag {REMEMBER_THIS_USE = 0, FORGET_THIS_USE = 1};
 
-  bool is_set_impl(const std::string &name) const;
+  //! Maximum length of the JSON string (for writing to output files)
+  static int max_length;
+
+  // Import settings from an override file
+  void import_from(const Config &other);
+
+  // Use `realpath()` to resolve relative file names.
+  void resolve_filenames();
+
+  const std::set<std::string>& parameters_set_by_user() const;
+  const std::set<std::string>& parameters_used() const;
+
+  void read(MPI_Comm com, const std::string &filename);
+  std::string filename() const;
+
+  void read(const File &file);
+
+  bool is_set(const std::string &name) const;
+
+  //! Return true if the numeric parameter `name` is set to a value within its valid
+  //! range.
+  bool is_valid_number(const std::string &name) const;
 
   // doubles
-  Doubles all_doubles_impl() const;
-  double get_number_impl(const std::string &name) const;
-  std::vector<double> get_numbers_impl(const std::string &name) const;
+  typedef std::map<std::string, std::vector<double> > Doubles;
+  Doubles all_doubles() const;
 
-  void set_number_impl(const std::string &name, double value);
-  void set_numbers_impl(const std::string &name,
-                        const std::vector<double> &values);
+  double get_number(const std::string &name, UseFlag flag = REMEMBER_THIS_USE) const;
+  double get_number(const std::string &name, const std::string &units,
+                    UseFlag flag = REMEMBER_THIS_USE) const;
+  std::vector<double> get_numbers(const std::string &name, UseFlag flag = REMEMBER_THIS_USE) const;
+  std::vector<double> get_numbers(const std::string &name, const std::string &units,
+                                  UseFlag flag = REMEMBER_THIS_USE) const;
+
+  void set_number(const std::string &name, double value, ConfigSettingFlag flag = CONFIG_FORCE);
+  void set_numbers(const std::string &name, const std::vector<double> &values,
+                   ConfigSettingFlag flag = CONFIG_FORCE);
+
   // strings
-  Strings all_strings_impl() const;
-  std::string get_string_impl(const std::string &name) const;
-  void set_string_impl(const std::string &name, const std::string &value);
+  typedef std::map<std::string, std::string> Strings;
+  Strings all_strings() const;
+
+  std::string get_string(const std::string &name, UseFlag flag = REMEMBER_THIS_USE) const;
+  void set_string(const std::string &name, const std::string &value, ConfigSettingFlag flag = CONFIG_FORCE);
 
   // flags
-  Flags all_flags_impl() const;
-  bool get_flag_impl(const std::string& name) const;
-  void set_flag_impl(const std::string& name, bool value);
+  typedef std::map<std::string, bool> Flags;
+  Flags all_flags() const;
+
+  std::set<std::string> keys() const;
+
+  bool get_flag(const std::string& name, UseFlag flag = REMEMBER_THIS_USE) const;
+  void set_flag(const std::string& name, bool value, ConfigSettingFlag flag = CONFIG_FORCE);
+
+  std::string doc(const std::string &parameter) const;
+  std::string units(const std::string &parameter) const;
+  std::string type(const std::string &parameter) const;
+  std::string option(const std::string &parameter) const;
+  std::string choices(const std::string &parameter) const;
+  std::pair<bool, double> valid_min(const std::string &parameter) const;
+  std::pair<bool, double> valid_max(const std::string &parameter) const;
+
+  std::shared_ptr<units::System> unit_system() const;
+
+  std::string json() const;
+  // Implementations
 protected:
-  MPI_Comm m_com;
-  VariableMetadata m_data;
+  virtual void read_impl(const File &nc) = 0;
+
+  virtual bool is_set_impl(const std::string &name) const = 0;
+
+  virtual Doubles all_doubles_impl() const = 0;
+  virtual double get_number_impl(const std::string &name) const = 0;
+  virtual std::vector<double> get_numbers_impl(const std::string &name) const = 0;
+
+  virtual void set_number_impl(const std::string &name, double value) = 0;
+  virtual void set_numbers_impl(const std::string &name,
+                                const std::vector<double> &values) = 0;
+
+  virtual Strings all_strings_impl() const = 0;
+  virtual std::string get_string_impl(const std::string &name) const = 0;
+  virtual void set_string_impl(const std::string &name, const std::string &value) = 0;
+
+  virtual Flags all_flags_impl() const = 0;
+
+  virtual bool get_flag_impl(const std::string& name) const = 0;
+  virtual void set_flag_impl(const std::string& name, bool value) = 0;
 private:
-  //! @brief the name of the file this config database was initialized from
-  std::string m_config_filename;
+  struct Impl;
+  Impl *m_impl;
 };
 
-//! @brief Default PISM configuration database: uses NetCDF files; can be initialized from a file
-//! specified using a command-line option.
-class DefaultConfig : public NetCDFConfig {
-public:
-  DefaultConfig(MPI_Comm com,
-                const std::string &variable_name,
-                const std::string &option,
-                units::System::Ptr unit_system);
-  ~DefaultConfig() = default;
+std::shared_ptr<Config> config_from_options(MPI_Comm com, std::shared_ptr<units::System> unit_system);
 
-  typedef std::shared_ptr<DefaultConfig> Ptr;
-  typedef std::shared_ptr<const DefaultConfig> ConstPtr;
+//! Set configuration parameters using command-line options.
+void set_config_from_options(Config &config);
 
-  //! Initialize (use default path if no option was set).
-  void init_with_default(const Logger &log);
-  //! Initialize (leave empty if no option was set).
-  void init(const Logger &log);
-private:
-  void init(const Logger &log, bool use_default_path);
-  std::string m_option;
-};
+//! Set one parameter using command-line options.
+void set_parameter_from_options(Config &config, const std::string &name);
+
+//! Set one flag parameter using command-line options.
+void set_flag_from_option(Config &config,
+                          const std::string &option,const std::string &parameter);
+
+//! Set one scalar parameter using command-line options.
+void set_number_from_option(Config &config,
+                            const std::string &option, const std::string &parameter);
+
+//! Set one free-form string parameter using command-line options.
+void set_string_from_option(Config &config,
+                            const std::string &option, const std::string &parameter);
+
+//! Set one keyword parameter using command-line options.
+void set_keyword_from_option(Config &config,
+                             const std::string &option, const std::string &parameter,
+                             const std::string &choices);
+
+//! Report configuration parameters to `stdout`.
+void print_config(const Logger &log, int verbosity_threshhold, const Config &config);
+
+//! Report unused configuration parameters to `stdout`.
+void print_unused_parameters(const Logger &log, int verbosity_threshhold,
+                             const Config &config);
+
+VariableMetadata config_metadata(const Config &config);
 
 } // end of namespace pism
 
-#endif /* _PISMCONFIG_H_ */
+#endif /* _PISM_CONFIG_H_ */

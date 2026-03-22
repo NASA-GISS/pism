@@ -1,4 +1,4 @@
-// Copyright (C) 2008-2016, 2023, 2024 PISM Authors
+// Copyright (C) 2008-2016, 2023, 2024, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -19,6 +19,7 @@
 #include "pism/util/MaxTimestep.hh"
 #include "pism/util/io/File.hh"
 #include "pism/icebin/IBSurfaceModel.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace icebin {
@@ -102,14 +103,12 @@ const array::Scalar& IBSurfaceModel::runoff_impl() const {
   return *m_runoff;
 }
 
-void IBSurfaceModel::define_model_state_impl(const File &output) const {
-  for (const auto *v : {&massxfer, &enthxfer, &deltah, &ice_top_bc_temp, &ice_top_bc_wc}) {
-    v->define(output, io::PISM_DOUBLE);
-  }
+std::set<VariableMetadata> IBSurfaceModel::state_impl() const {
+  return array::metadata({ &massxfer, &enthxfer, &deltah, &ice_top_bc_temp, &ice_top_bc_wc });
 }
 
-void IBSurfaceModel::write_model_state_impl(const File &output) const {
-  for (const auto *v : {&massxfer, &enthxfer, &deltah, &ice_top_bc_temp, &ice_top_bc_wc}) {
+void IBSurfaceModel::write_state_impl(const OutputFile &output) const {
+  for (const auto *v : { &massxfer, &enthxfer, &deltah, &ice_top_bc_temp, &ice_top_bc_wc }) {
     v->write(output);
   }
 }

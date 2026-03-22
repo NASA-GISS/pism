@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2019, 2021, 2022 PISM Authors
+// Copyright (C) 2012-2019, 2021, 2022, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -30,7 +30,7 @@ namespace hydrology {
 //! equals overburden pressure.
 /*!
   This PISM hydrology model has lateral motion of subglacial water and which
-  conserves the water mass.  Further documentation is in [\ref BuelervanPeltDRAFT].
+  conserves the water mass.  Further documentation is in [\ref BuelervanPelt2015].
 
   The water velocity is along the steepest descent route for the hydraulic
   potential.  This potential is (mostly) a function of ice sheet geometry,
@@ -99,11 +99,11 @@ protected:
 
   virtual void update_impl(double t, double dt, const Inputs& inputs);
 
-  virtual std::map<std::string, Diagnostic::Ptr> diagnostics_impl() const;
-  virtual std::map<std::string, TSDiagnostic::Ptr> ts_diagnostics_impl() const;
+  virtual std::map<std::string, Diagnostic::Ptr> spatial_diagnostics_impl() const;
+  virtual std::map<std::string, TSDiagnostic::Ptr> scalar_diagnostics_impl() const;
 
-  virtual void define_model_state_impl(const File &output) const;
-  virtual void write_model_state_impl(const File &output) const;
+  virtual std::set<VariableMetadata> state_impl() const;
+  virtual void write_state_impl(const OutputFile &output) const;
 
   double max_timestep_W_diff(double KW_max) const;
   double max_timestep_W_cfl() const;

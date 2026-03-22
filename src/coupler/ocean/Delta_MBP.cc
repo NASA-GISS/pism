@@ -1,4 +1,4 @@
-/* Copyright (C) 2021, 2023 PISM Authors
+/* Copyright (C) 2021, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -20,6 +20,7 @@
 #include "pism/coupler/ocean/Delta_MBP.hh"
 #include "pism/util/ScalarForcing.hh"
 #include "pism/geometry/Geometry.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace ocean {
@@ -48,8 +49,10 @@ void Delta_MBP::init_impl(const Geometry &geometry) {
                  "* Initializing melange back pressure forcing using scalar offsets...\n");
 }
 
-void Delta_MBP::update_impl(const Geometry &geometry, double t, double dt) {
-  m_input_model->update(geometry, t, dt);
+void Delta_MBP::update_impl(const Inputs &inputs, double t, double dt) {
+  m_input_model->update(inputs, t, dt);
+
+  const auto &geometry = *inputs.geometry;
 
   double
     melange_thickness = m_config->get_number("ocean.delta_MBP.melange_thickness"),
@@ -60,7 +63,7 @@ void Delta_MBP::update_impl(const Geometry &geometry, double t, double dt) {
   auto &P_new = *m_water_column_pressure;
   array::AccessScope list{&P, &H, &P_new};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double dP = H(i, j) > 0.0 ? (melange_thickness * dP_melange) / H(i, j) : 0.0;

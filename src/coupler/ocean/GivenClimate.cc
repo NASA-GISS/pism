@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -23,6 +23,8 @@
 
 #include "pism/coupler/util/options.hh"
 #include "pism/util/array/Forcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace ocean {
@@ -79,7 +81,9 @@ void Given::init_impl(const Geometry &geometry) {
 
   // read time-independent data right away:
   if (m_shelfbtemp->buffer_size() == 1 && m_shelfbmassflux->buffer_size() == 1) {
-    update(geometry, time().current(), 0); // dt is irrelevant
+    Inputs inputs;
+    inputs.geometry = &geometry;
+    update(inputs, time().current(), 0); // dt is irrelevant
   }
 
   const double
@@ -91,8 +95,7 @@ void Given::init_impl(const Geometry &geometry) {
                                            *m_water_column_pressure);
 }
 
-void Given::update_impl(const Geometry &geometry, double t, double dt) {
-  (void) geometry;
+void Given::update_impl(const Inputs &inputs, double t, double dt) {
 
   m_shelfbmassflux->update(t, dt);
   m_shelfbtemp->update(t, dt);
@@ -108,8 +111,8 @@ void Given::update_impl(const Geometry &geometry, double t, double dt) {
     water_density = m_config->get_number("constants.sea_water.density"),
     g             = m_config->get_number("constants.standard_gravity");
 
-  compute_average_water_column_pressure(geometry, ice_density, water_density, g,
-                                           *m_water_column_pressure);
+  compute_average_water_column_pressure(*inputs.geometry, ice_density, water_density, g,
+                                        *m_water_column_pressure);
 }
 
 MaxTimestep Given::max_timestep_impl(double t) const {

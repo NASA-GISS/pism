@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2019, 2021, 2022, 2023, 2024 Constantine Khrulev, Ricarda Winkelmann, Ronja Reese, Torsten
+// Copyright (C) 2012-2019, 2021, 2022, 2023, 2024, 2025, 2026 Constantine Khrulev, Ricarda Winkelmann, Ronja Reese, Torsten
 // Albrecht, and Matthias Mengel
 //
 // This file is part of PISM.
@@ -34,7 +34,7 @@
 
 #include "pism/coupler/util/options.hh"
 #include "pism/geometry/Geometry.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/Grid.hh"
 #include "pism/util/Mask.hh"
 #include "pism/util/Time.hh"
@@ -43,6 +43,8 @@
 #include "pism/coupler/ocean/PicoGeometry.hh"
 #include "pism/coupler/ocean/PicoPhysics.hh"
 #include "pism/util/array/Forcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace ocean {
@@ -171,24 +173,21 @@ void Pico::init_impl(const Geometry &geometry) {
                                         *m_water_column_pressure);
 }
 
-void Pico::define_model_state_impl(const File &output) const {
+std::set<VariableMetadata> Pico::state_impl() const {
+  auto variables =
+      array::metadata({ &m_geometry.basin_mask(), &m_Soc_box0, &m_Toc_box0, &m_overturning });
 
-  m_geometry.basin_mask().define(output, io::PISM_DOUBLE);
-  m_Soc_box0.define(output, io::PISM_DOUBLE);
-  m_Toc_box0.define(output, io::PISM_DOUBLE);
-  m_overturning.define(output, io::PISM_DOUBLE);
-
-  OceanModel::define_model_state_impl(output);
+  return pism::combine(variables, OceanModel::state_impl());
 }
 
-void Pico::write_model_state_impl(const File &output) const {
+void Pico::write_state_impl(const OutputFile &output) const {
 
   m_geometry.basin_mask().write(output);
   m_Soc_box0.write(output);
   m_Toc_box0.write(output);
   m_overturning.write(output);
 
-  OceanModel::write_model_state_impl(output);
+  OceanModel::write_state_impl(output);
 }
 
 /*!
@@ -207,7 +206,7 @@ static void extend_basal_melt_rates(const array::CellType1 &cell_type,
 
   array::AccessScope list{&cell_type, &basal_melt_rate};
 
-  for (auto p = grid->points(); p; p.next()) {
+  for (auto p : grid->points()) {
 
     const int i = p.i(), j = p.j();
 
@@ -242,7 +241,7 @@ static void extend_basal_melt_rates(const array::CellType1 &cell_type,
   } // end of the loop over grid points
 }
 
-void Pico::update_impl(const Geometry &geometry, double t, double dt) {
+void Pico::update_impl(const Inputs &inputs, double t, double dt) {
 
   m_theta_ocean->update(t, dt);
   m_salinity_ocean->update(t, dt);
@@ -268,9 +267,9 @@ void Pico::update_impl(const Geometry &geometry, double t, double dt) {
 
   PicoPhysics physics(*m_config);
 
-  const array::Scalar &ice_thickness    = geometry.ice_thickness;
-  const auto &cell_type = geometry.cell_type;
-  const array::Scalar &bed_elevation    = geometry.bed_elevation;
+  const array::Scalar &ice_thickness    = inputs.geometry->ice_thickness;
+  const auto &cell_type = inputs.geometry->cell_type;
+  const array::Scalar &bed_elevation    = inputs.geometry->bed_elevation;
 
   // Geometric part of PICO
   m_geometry.update(bed_elevation, cell_type);
@@ -353,7 +352,7 @@ void Pico::update_impl(const Geometry &geometry, double t, double dt) {
     water_density = m_config->get_number("constants.sea_water.density"),
     g             = m_config->get_number("constants.standard_gravity");
 
-  compute_average_water_column_pressure(geometry, ice_density, water_density, g,
+  compute_average_water_column_pressure(*inputs.geometry, ice_density, water_density, g,
                                         *m_water_column_pressure);
 }
 
@@ -396,7 +395,7 @@ void Pico::compute_ocean_input_per_basin(const PicoPhysics &physics,
   // compute the sum for each basin for region that intersects with the continental shelf
   // area and is not covered by an ice shelf. (continental shelf mask excludes ice shelf
   // areas)
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (continental_shelf_mask.as_int(i, j) == 2) {
@@ -481,7 +480,7 @@ void Pico::set_ocean_input_fields(const PicoPhysics &physics,
   // 1) count the number of cells in each shelf
   // 2) count the number of cells in the intersection of each shelf with all the basins
   {
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
       int s = shelf_mask.as_int(i, j);
       int b = basin_mask.as_int(i, j);
@@ -528,7 +527,7 @@ void Pico::set_ocean_input_fields(const PicoPhysics &physics,
   // now set potential temperature and salinity box 0:
 
   int low_temperature_counter = 0;
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     // make sure all temperatures are zero at the beginning of each time step
@@ -599,7 +598,7 @@ void Pico::beckmann_goosse(const PicoPhysics &physics,
   array::AccessScope list{ &ice_thickness, &cell_type, &shelf_mask,      &Toc_box0,          &Soc_box0,
                                 &Toc,           &Soc,       &basal_melt_rate, &basal_temperature };
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (cell_type.floating_ice(i, j)) {
@@ -649,7 +648,7 @@ void Pico::process_box1(const PicoPhysics &physics,
 
   // basal melt rate, ambient temperature and salinity and overturning calculation
   // for each box1 grid cell.
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     int shelf_id = shelf_mask.as_int(i, j);
@@ -735,7 +734,7 @@ void Pico::process_other_boxes(const PicoPhysics &physics,
 
     int n_beckmann_goosse_cells = 0;
 
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       int shelf_id = shelf_mask.as_int(i, j);
@@ -781,8 +780,8 @@ void Pico::process_other_boxes(const PicoPhysics &physics,
 }
 
 
-// Write diagnostic variables to extra files if requested
-DiagnosticList Pico::diagnostics_impl() const {
+// Return spatially-variable diagnostics
+DiagnosticList Pico::spatial_diagnostics_impl() const {
 
   DiagnosticList result = {
     { "basins",                 Diagnostic::wrap(m_geometry.basin_mask()) },
@@ -800,7 +799,7 @@ DiagnosticList Pico::diagnostics_impl() const {
     { "pico_basal_temperature", Diagnostic::wrap(*m_shelf_base_temperature) },
   };
 
-  return combine(result, OceanModel::diagnostics_impl());
+  return combine(result, OceanModel::spatial_diagnostics_impl());
 }
 
 /*!
@@ -826,7 +825,7 @@ void Pico::compute_box_average(int box_id,
   std::vector<int> n_cells(m_n_shelves);
   {
     std::vector<int> n_cells_per_box(m_n_shelves, 0);
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       int shelf_id = shelf_mask.as_int(i, j);
@@ -870,7 +869,7 @@ void Pico::compute_box_area(int box_id,
 
   auto cell_area = m_grid->cell_area();
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     int shelf_id = shelf_mask.as_int(i, j);

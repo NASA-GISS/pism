@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2022, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -24,6 +24,8 @@
 #include "pism/util/array/CellType.hh"
 #include "pism/util/io/File.hh"
 #include "pism/util/pism_utilities.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace energy {
@@ -227,7 +229,7 @@ void TemperatureModel::update_impl(double t, double dt, const Inputs &inputs) {
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       MaskValue mask = static_cast<MaskValue>(cell_type.as_int(i,j));
@@ -362,13 +364,12 @@ void TemperatureModel::update_impl(double t, double dt, const Inputs &inputs) {
   compute_enthalpy_cold(m_work, ice_thickness, m_work);
 }
 
-void TemperatureModel::define_model_state_impl(const File &output) const {
-  m_ice_temperature.define(output, io::PISM_DOUBLE);
-  m_basal_melt_rate.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> TemperatureModel::state_impl() const {
   // ice enthalpy is not a part of the model state
+  return array::metadata({ &m_ice_temperature, &m_basal_melt_rate });
 }
 
-void TemperatureModel::write_model_state_impl(const File &output) const {
+void TemperatureModel::write_state_impl(const OutputFile &output) const {
   m_ice_temperature.write(output);
   m_basal_melt_rate.write(output);
   // ice enthalpy is not a part of the model state

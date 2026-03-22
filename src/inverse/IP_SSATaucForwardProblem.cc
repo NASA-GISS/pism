@@ -28,6 +28,7 @@
 #include "pism/util/petscwrappers/Vec.hh"
 #include "pism/util/fem/DirichletData.hh"
 #include "pism/util/fem/Quadrature.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace inverse {
@@ -155,7 +156,7 @@ void IP_SSATaucForwardProblem::set_design(array::Scalar &new_zeta) {
   // Cache tauc at the quadrature points.
   array::AccessScope list{&tauc, &m_coefficients};
 
-  for (auto p = m_grid->points(1); p; p.next()) {
+  for (auto p : m_grid->points_with_ghosts(1)) {
     const int i = p.i(), j = p.j();
     m_coefficients(i, j).tauc = tauc(i, j);
   }
@@ -257,7 +258,7 @@ void IP_SSATaucForwardProblem::apply_jacobian_design(array::Vector &u,
   list.add(*dzeta_local);
 
   // Zero out the portion of the function we are responsible for computing.
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     du_a[j][i].u = 0.0;
@@ -389,7 +390,7 @@ void IP_SSATaucForwardProblem::apply_jacobian_design_transpose(array::Vector &u,
 void IP_SSATaucForwardProblem::apply_jacobian_design_transpose(array::Vector &u,
                                                                array::Vector &du,
                                                                Vec dzeta) {
-  petsc::DM::Ptr da2 = m_grid->get_dm(1, m_config->get_number("grid.max_stencil_width"));
+  auto da2 = m_grid->get_dm(1, m_config->get_number("grid.max_stencil_width"));
   petsc::DMDAVecArray dzeta_a(da2, dzeta);
   this->apply_jacobian_design_transpose(u, du, (double**)dzeta_a.get());
 }
@@ -441,7 +442,7 @@ void IP_SSATaucForwardProblem::apply_jacobian_design_transpose(array::Vector &u,
                                         dirichletWeight);
 
   // Zero out the portion of the function we are responsible for computing.
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     dzeta_a[j][i] = 0;
@@ -517,7 +518,7 @@ void IP_SSATaucForwardProblem::apply_jacobian_design_transpose(array::Vector &u,
   }
   loop.check();
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double dtauc_dzeta;

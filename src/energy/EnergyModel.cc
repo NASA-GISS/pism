@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -27,6 +27,8 @@
 #include "pism/util/error_handling.hh"
 #include "pism/util/io/File.hh"
 #include "pism/util/pism_utilities.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace energy {
@@ -161,7 +163,7 @@ void EnergyModel::init_enthalpy(const File &input_file, bool do_regrid, int reco
     const array::Scalar &ice_thickness = *m_grid->variables().get_2d_scalar("land_ice_thickness");
 
     if (input_file.variable_exists("liqfrac")) {
-      SpatialVariableMetadata enthalpy_metadata = m_ice_enthalpy.metadata();
+      auto enthalpy_metadata = m_ice_enthalpy.metadata();
 
       liqfrac.set_name("liqfrac");
       liqfrac.metadata(0).set_name("liqfrac");
@@ -209,7 +211,7 @@ void EnergyModel::regrid_enthalpy() {
 
   std::string enthalpy_name = m_ice_enthalpy.metadata().get_name();
 
-  if (regrid_vars.empty() or member(enthalpy_name, regrid_vars)) {
+  if (regrid_vars.empty() or set_member(enthalpy_name, regrid_vars)) {
     File regrid_file(m_grid->com, regrid_filename, io::PISM_GUESS, io::PISM_READONLY);
     init_enthalpy(regrid_file, true, 0);
   }
@@ -327,7 +329,7 @@ protected:
   }
 };
 
-DiagnosticList EnergyModel::diagnostics_impl() const {
+DiagnosticList EnergyModel::spatial_diagnostics_impl() const {
   DiagnosticList result;
   result = {
     {"enthalpy",                 Diagnostic::wrap(m_ice_enthalpy)},
@@ -336,7 +338,7 @@ DiagnosticList EnergyModel::diagnostics_impl() const {
   return result;
 }
 
-TSDiagnosticList EnergyModel::ts_diagnostics_impl() const {
+TSDiagnosticList EnergyModel::scalar_diagnostics_impl() const {
   return {
     {"liquified_ice_flux", TSDiagnostic::Ptr(new LiquifiedIceFlux(this))}
   };

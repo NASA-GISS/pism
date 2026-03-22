@@ -1,4 +1,4 @@
-/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -21,10 +21,11 @@
 
 #include "pism/util/Mask.hh"
 #include "pism/util/Grid.hh"
-#include "pism/util/pism_utilities.hh"
 #include "pism/coupler/util/options.hh"
 #include "pism/util/array/Forcing.hh"
 #include "pism/util/io/File.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 
@@ -54,6 +55,13 @@ CalvingAtThickness::CalvingAtThickness(std::shared_ptr<const Grid> g)
         .units("m"); // no standard name
     m_calving_threshold->metadata()["valid_min"] = {0.0};
   }
+
+  if (not m_config->get_flag("geometry.part_grid.enabled")) {
+    m_log->message(
+        2, "PISM WARNING: Calving at certain terminal ice thickness (-calving thickness_calving)\n"
+           "              without application of partially filled grid cell scheme (-part_grid)\n"
+           "              may lead to (incorrect) non-moving ice shelf front.\n");
+  }
 }
 
 void CalvingAtThickness::init() {
@@ -73,7 +81,7 @@ void CalvingAtThickness::init() {
   } else {
     double calving_threshold = m_config->get_number("calving.thickness_calving.threshold");
 
-    SpatialVariableMetadata attributes = m_calving_threshold->metadata();
+    auto attributes = m_calving_threshold->metadata();
     // replace with a constant array::Forcing
     m_calving_threshold = array::Forcing::Constant(m_grid,
                                                   "thickness_calving_threshold",
@@ -112,7 +120,7 @@ void CalvingAtThickness::update(double t,
   const auto &threshold = *m_calving_threshold;
 
   array::AccessScope list{&cell_type, &ice_thickness, &m_old_mask, &threshold};
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     if (m_old_mask.floating_ice(i, j)           &&
@@ -131,7 +139,7 @@ const array::Scalar& CalvingAtThickness::threshold() const {
   return *m_calving_threshold;
 }
 
-DiagnosticList CalvingAtThickness::diagnostics_impl() const {
+DiagnosticList CalvingAtThickness::spatial_diagnostics_impl() const {
   return {{"thickness_calving_threshold", Diagnostic::wrap(*m_calving_threshold)}};
 }
 

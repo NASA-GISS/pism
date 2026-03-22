@@ -1,6 +1,10 @@
 #!/bin/bash
 
+set +x
+# Activate the environment containing mpi4py that will be needed for testing:
+source $HOME/local/pism/bin/activate
 set -x
+
 set -e
 set -u
 
@@ -50,13 +54,12 @@ ${CMAKE_PREFIX}/bin/cmake -S ${source_dir} \
                -DCMAKE_MODULE_LINKER_FLAGS="-fuse-ld=lld" \
                -DCMAKE_PREFIX_PATH="${hdf5_dir};${netcdf_dir};${pnetcdf_dir};${yac_dir}" \
                -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld" \
-               -DPism_BUILD_EXTRA_EXECS=YES \
                -DPism_BUILD_ICEBIN=YES \
                -DPism_BUILD_PYTHON_BINDINGS=${python} \
                -DPism_PEDANTIC_WARNINGS=YES \
                -DPism_USE_PARALLEL_NETCDF4=YES \
                -DPism_USE_PNETCDF=YES \
                -DPism_USE_PROJ=YES \
-               -DPism_USE_YAC_INTERPOLATION=YES
+               -DPism_USE_YAC=YES
 
 make --no-print-directory -C ${build_dir} -j ${N} ${target}

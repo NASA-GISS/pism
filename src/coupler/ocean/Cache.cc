@@ -1,4 +1,4 @@
-/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2020, 2021, 2023 PISM Authors
+/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2020, 2021, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -26,6 +26,7 @@
 #include "pism/util/MaxTimestep.hh"
 #include "pism/util/Time.hh"
 #include "pism/util/error_handling.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace ocean {
@@ -62,7 +63,7 @@ void Cache::init_impl(const Geometry &geometry) {
   m_next_update_time = time().current();
 }
 
-void Cache::update_impl(const Geometry &geometry, double t, double dt) {
+void Cache::update_impl(const Inputs &inputs, double t, double dt) {
   // ignore dt and always use 1 year long time-steps when updating
   // an input model
   (void) dt;
@@ -78,7 +79,7 @@ void Cache::update_impl(const Geometry &geometry, double t, double dt) {
 
     assert(update_dt > 0.0);
 
-    m_input_model->update(geometry, t, update_dt);
+    m_input_model->update(inputs, t, update_dt);
 
     m_next_update_time = time().increment_date(m_next_update_time,
                                                                m_update_interval_years);

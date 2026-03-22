@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016, 2017, 2018, 2023 PISM Authors
+/* Copyright (C) 2015, 2016, 2017, 2018, 2023, 2025, 2026 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -18,7 +18,7 @@
  */
 
 #include "pism/rheology/GPBLD.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 
 namespace pism {
 namespace rheology {
@@ -27,9 +27,8 @@ namespace rheology {
   This constructor just sets flow law factor for nonzero water content, from
   \ref AschwandenBlatter and \ref LliboutryDuval1985.
 */
-GPBLD::GPBLD(const std::string &prefix,
-             const Config &config, EnthalpyConverter::Ptr ec)
-  : FlowLaw(prefix, config, ec) {
+GPBLD::GPBLD(double exponent, const Config &config, std::shared_ptr<EnthalpyConverter> ec)
+    : FlowLaw(exponent, config, ec) {
   m_name = "Glen-Paterson-Budd-Lliboutry-Duval";
 
   m_T_0              = config.get_number("constants.fresh_water.melting_point_temperature"); // K
@@ -51,13 +50,14 @@ double GPBLD::softness_impl(double enthalpy, double pressure) const {
   if (enthalpy < E_s) {       // cold ice
     double T_pa = m_EC->pressure_adjusted_temperature(enthalpy, pressure);
     return softness_paterson_budd(T_pa);
-  } else { // temperate ice
-    double omega = m_EC->water_fraction(enthalpy, pressure);
-    // as stated in \ref AschwandenBuelerBlatter, cap omega at max of observations:
-    omega = std::min(omega, m_water_frac_observed_limit);
-    // next line implements eqn (23) in \ref AschwandenBlatter2009
-    return softness_paterson_budd(m_T_0) * (1.0 + m_water_frac_coeff * omega);
   }
+
+  // temperate ice
+  double omega = m_EC->water_fraction(enthalpy, pressure);
+  // as stated in \ref AschwandenBuelerBlatter, cap omega at max of observations:
+  omega = std::min(omega, m_water_frac_observed_limit);
+  // next line implements eqn (23) in \ref AschwandenBlatter2009
+  return softness_paterson_budd(m_T_0) * (1.0 + m_water_frac_coeff * omega);
 }
 
 void GPBLD::flow_n_impl(const double *stress, const double *enthalpy,

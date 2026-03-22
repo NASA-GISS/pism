@@ -72,17 +72,15 @@ add_library (libpism
   icemodel/initialization.cc
   icemodel/output.cc
   icemodel/output_checkpoint.cc
-  icemodel/output_extra.cc
-  icemodel/output_save.cc
-  icemodel/output_ts.cc
+  icemodel/output_spatial.cc
+  icemodel/output_snapshots.cc
+  icemodel/output_scalar.cc
   icemodel/printout.cc
   icemodel/timestepping.cc
   icemodel/utilities.cc
   icemodel/viewers.cc
   stressbalance/timestepping.cc
   fracturedensity/FractureDensity.cc
-  util/ColumnSystem.cc
-  util/pism_signal.c
   $<TARGET_OBJECTS:frontretreat>
   $<TARGET_OBJECTS:hydrology>
   $<TARGET_OBJECTS:flowlaws>
@@ -123,10 +121,6 @@ if (Pism_DEBUG)
   )
 endif()
 
-if (Pism_USE_JANSSON)
-  target_link_libraries(libpism ${JANSSON_LIBRARIES})
-endif()
-
 if (Pism_USE_PROJ)
   target_link_libraries(libpism PkgConfig::PROJ)
 endif()
@@ -139,7 +133,7 @@ if (Pism_USE_EVERYTRACE)
   target_link_libraries(libpism ${EVERYTRACE_LIBRARY})
 endif()
 
-if(Pism_USE_YAC_INTERPOLATION)
+if(Pism_USE_YAC)
   target_link_libraries(libpism PkgConfig::YAC)
 endif()
 
@@ -172,17 +166,14 @@ install (FILES
   DESTINATION ${CMAKE_INSTALL_DATADIR}/pism)
 
 # miscellaneous executables needed by software tests
-if (Pism_BUILD_EXTRA_EXECS)
-  add_executable (pism_btutest energy/btutest.cc)
-  target_link_libraries (pism_btutest libpism)
-  list (APPEND EXTRA_EXECS pism_btutest)
+add_executable (pism_btutest energy/btutest.cc)
+target_link_libraries (pism_btutest libpism)
 
-  install (TARGETS
-    ${EXTRA_EXECS}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-endif (Pism_BUILD_EXTRA_EXECS)
+install (TARGETS
+  pism_btutest
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 
 # ------------ Header Files

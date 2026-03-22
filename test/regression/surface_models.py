@@ -32,17 +32,19 @@ options = PISM.PETSc.Options()
 def write_state(model, filename):
     "Write the state of the model to a file"
 
-    PISM.util.prepare_output(filename)
-    f = PISM.File(model.grid().ctx().com(),
-                  filename,
-                  PISM.PISM_NETCDF3,
-                  PISM.PISM_READWRITE)
-    model.define_model_state(f)
-    model.write_model_state(f)
+    f = PISM.util.prepare_output(filename)
 
-    diags = model.diagnostics()
+    for v in model.state():
+        f.define_variable(v)
+
+    model.write_state(f)
+
+    diags = model.spatial_diagnostics()
     for k in diags.keys():
-        diags[k].compute().write(f)
+        d = diags[k]
+        for k in range(d.n_variables()):
+            f.define_variable(d.metadata(k))
+        d.compute().write(f)
 
     f.close()
 
@@ -59,10 +61,10 @@ def probe_interface(model):
 
     model.max_timestep(0)
 
-    model.diagnostics()
+    model.spatial_diagnostics()
 
     # FIXME: this causes a memory leak
-    # model.ts_diagnostics()
+    # model.scalar_diagnostics()
 
     model.grid()
 
@@ -138,8 +140,15 @@ class Given(TestCase):
         self.M = 1001.0
 
         output = PISM.util.prepare_output(self.filename)
-        ice_surface_temp(self.grid, self.T).write(output)
-        climatic_mass_balance(self.grid, self.M).write(output)
+
+        T = ice_surface_temp(self.grid, self.T)
+        output.define_variable(T.metadata())
+        T.write(output)
+
+        M = climatic_mass_balance(self.grid, self.M)
+        output.define_variable(M.metadata())
+        M.write(output)
+
         output.close()
 
     def test_surface_given(self):
@@ -296,15 +305,14 @@ class Elevation(TestCase):
 
         # make a copy of the configuration database so we can re-initialize it from
         # options and then restore it
-        self.config = PISM.DefaultConfig(ctx.com, "pism_config", "-config", ctx.unit_system)
-        self.config.init_with_default(ctx.log)
+        self.config = PISM.config_from_options(ctx.com, ctx.unit_system)
         self.config.import_from(ctx.config)
 
     def tearDown(self):
         ctx = PISM.Context()
         ctx.config.import_from(self.config)
 
-    def elevation_1_test(self):
+    def test_elevation_1(self):
         "Model 'elevation', test 1"
         model = PISM.SurfaceElevation(self.grid, PISM.AtmosphereUniform(self.grid))
 
@@ -324,7 +332,7 @@ class Elevation(TestCase):
 
         probe_interface(model)
 
-    def elevation_2_test(self):
+    def test_elevation_2(self):
         "Model 'elevation', test 2"
         T_min = -5.0
         T_max = 0.0
@@ -342,7 +350,7 @@ class Elevation(TestCase):
                          "{},{},{},{},{}".format(M_min, M_max, z_min, z_ela, z_max))
 
         ctx = PISM.Context()
-        PISM.set_config_from_options(ctx.unit_system, ctx.config)
+        PISM.set_config_from_options(ctx.config)
 
         T = PISM.util.convert(0.5 * (T_min + T_max), "degree_Celsius", "kelvin")
         SMB = PISM.util.convert(1.87504, "m/year", "m/s") * config.get_number("constants.ice.density")
@@ -362,7 +370,7 @@ class TemperatureIndex1(TestCase):
         self.atmosphere = PISM.AtmosphereUniform(self.grid)
         self.output_filename = filename("surface_pdd_output_")
 
-    def pdd_test(self):
+    def test_pdd(self):
         "Model 'pdd', test 1"
         config.set_string("surface.pdd.method", "expectation_integral")
 
@@ -452,7 +460,7 @@ class PIK(TestCase):
 
         config.set_string("input.file", self.filename)
 
-    def surface_pik_test(self):
+    def test_surface_pik(self):
         "Model 'pik'"
         model = PISM.SurfacePIK(self.grid, PISM.AtmosphereUniform(self.grid))
 
@@ -477,7 +485,7 @@ class Simple(TestCase):
         self.atmosphere = PISM.AtmosphereUniform(self.grid)
         self.geometry = PISM.Geometry(self.grid)
 
-    def simple_test(self):
+    def test_simple(self):
         "Model 'simple'"
         atmosphere = self.atmosphere
 
@@ -522,7 +530,7 @@ class Anomaly(TestCase):
 
         delta_T.write(self.filename)
 
-    def anomaly_test(self):
+    def test_anomaly(self):
         "Modifier 'anomaly'"
 
         config.set_string("surface.anomaly.file", self.filename)
@@ -639,7 +647,7 @@ class ForceThickness(TestCase):
         config.set_string("surface.force_to_thickness.file", self.filename)
         config.set_number("surface.force_to_thickness.alpha", convert(alpha, "1/s", "1/year"))
 
-    def forcing_test(self):
+    def test_forcing(self):
         "Modifier ForceThickness"
         modifier = PISM.SurfaceForceThickness(self.grid, self.model)
 
@@ -669,7 +677,7 @@ class EISMINTII(TestCase):
         self.geometry = PISM.Geometry(self.grid)
         self.output_filename = filename("surface_eismint_output_")
 
-    def eismintii_test(self):
+    def test_eismintii(self):
         "Model EISMINTII: define and write model state; get diagnostics"
 
         for experiment in "ABCDEFGHIJKL":
@@ -697,7 +705,7 @@ class Initialization(TestCase):
         self.output_filename = filename("surface_init_output_")
         self.model = surface_simple(self.grid)
 
-    def initialization_test(self):
+    def test_initialization(self):
         "Modifier InitializationHelper"
 
         modifier = PISM.SurfaceInitialization(self.grid, self.model)
@@ -717,7 +725,7 @@ class Factory(TestCase):
         self.grid = shallow_grid()
         self.geometry = PISM.Geometry(self.grid)
 
-    def factory_test(self):
+    def test_factory(self):
         "Surface model factory"
         atmosphere = PISM.AtmosphereUniform(self.grid)
 
@@ -750,11 +758,11 @@ class ISMIP6(TestCase):
         SMB_ref = PISM.Scalar(grid, "climatic_mass_balance")
         T_ref   = PISM.Scalar(grid, "ice_surface_temp")
 
-        usurf.metadata(0).set_string("units", "m")
+        usurf.metadata(0).set_string("units", "m").set_time_dependent(False)
 
-        SMB_ref.metadata(0).long_name("reference SMB").units("kg m^-2 s^-1").output_units("kg m^-2 s^-1").standard_name("land_ice_surface_specific_mass_balance_flux")
+        SMB_ref.metadata(0).long_name("reference SMB").units("kg m^-2 s^-1").output_units("kg m^-2 s^-1").standard_name("land_ice_surface_specific_mass_balance_flux").set_time_dependent(False)
 
-        T_ref.metadata(0).set_string("units", "kelvin")
+        T_ref.metadata(0).set_string("units", "kelvin").set_time_dependent(False)
 
         out = PISM.util.prepare_output(filename, append_time=True)
 
@@ -764,7 +772,7 @@ class ISMIP6(TestCase):
 
         # write time-independent fields
         for v in [usurf, SMB_ref, T_ref]:
-            v.metadata().set_time_independent(True)
+            out.define_variable(v.metadata(0))
             v.write(out)
 
         out.close()
@@ -783,11 +791,17 @@ class ISMIP6(TestCase):
         dTdz = PISM.Scalar(grid, "ice_surface_temp_gradient")
         dTdz.metadata(0).long_name("surface temperature gradient").units("K m^-1").output_units("K m^-1")
 
-        out = PISM.util.prepare_output(filename, append_time=False)
+        time = self.ctx.time.metadata(with_bounds=True)
+        time.units("seconds since 1-1-1")
+        
+        out = PISM.util.prepare_output(filename, append_time=False, time=time)
 
-        bounds = PISM.VariableMetadata("time_bounds", self.ctx.unit_system)
+        bounds = self.ctx.time.bounds_metadata()
 
-        PISM.define_time_bounds(bounds, "time", "nv", out, PISM.PISM_DOUBLE)
+        out.define_variable(bounds)
+
+        for v in [aSMB, dSMBdz, aT, dTdz]:
+            out.define_variable(v.metadata())
 
         SMB_anomaly  = 1.0
         T_anomaly    = 1.0
@@ -801,9 +815,9 @@ class ISMIP6(TestCase):
 
             t = self.ctx.time.current() + j * dt
 
-            PISM.append_time(out, self.ctx.config, t)
+            out.append_time(t)
 
-            PISM.write_time_bounds(out, bounds, j, [t, t + dt])
+            out.write_array(bounds.get_name(), [j, 0], [1, 2], [t, t + dt])
 
             aSMB.set(t * SMB_anomaly)
 
@@ -815,10 +829,6 @@ class ISMIP6(TestCase):
 
             for v in [aSMB, dSMBdz, aT, dTdz]:
                 v.write(out)
-
-        out.redef()
-        out.write_attribute("time", "bounds", "time_bounds")
-        out.write_attribute("time", "units", "seconds since 1-1-1")
 
         out.close()
 
@@ -840,7 +850,7 @@ class ISMIP6(TestCase):
         self.ctx.config.set_string("surface.ismip6.file", self.forcing_file)
         self.ctx.config.set_string("surface.ismip6.reference_file", self.reference_file)
 
-    def ismip6_test(self):
+    def test_ismip6(self):
         "Surface model ISMIP6"
 
         atmosphere = PISM.AtmosphereUniform(self.grid)
@@ -863,5 +873,5 @@ if __name__ == "__main__":
     t = ISMIP6()
 
     t.setUp()
-    t.ismip6_test()
+    t.test_ismip6()
     t.tearDown()

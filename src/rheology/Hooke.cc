@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016, 2017, 2023 PISM Authors
+/* Copyright (C) 2015, 2016, 2017, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -20,16 +20,16 @@
 #include <cmath>
 
 #include "pism/rheology/Hooke.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 
 namespace pism {
 namespace rheology {
 
 // Hooke
 
-Hooke::Hooke(const std::string &prefix,
-             const Config &config, EnthalpyConverter::Ptr ec)
-  : PatersonBudd(prefix, config, ec) {
+Hooke::Hooke(double exponent,
+             const Config &config, std::shared_ptr<EnthalpyConverter> ec)
+  : PatersonBudd(exponent, config, ec) {
   m_name = "Hooke";
 
   m_Q_Hooke  = config.get_number("flow_law.Hooke.Q");

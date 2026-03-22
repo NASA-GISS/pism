@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2022, 2023 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2022, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -25,6 +25,8 @@
 #include "pism/util/EnthalpyConverter.hh"
 #include "pism/util/array/CellType.hh"
 #include "pism/util/io/File.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace energy {
@@ -108,7 +110,7 @@ void EnthalpyModel::update_impl(double t, double dt, const Inputs &inputs) {
   // current time does not matter here
   (void) t;
 
-  EnthalpyConverter::Ptr EC = m_grid->ctx()->enthalpy_converter();
+  auto EC = m_grid->ctx()->enthalpy_converter();
 
   const double
     ice_density           = m_config->get_number("constants.ice.density"), // kg m-3
@@ -156,7 +158,7 @@ void EnthalpyModel::update_impl(double t, double dt, const Inputs &inputs) {
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto pt = m_grid->points(); pt; pt.next()) {
+    for (auto pt : m_grid->points()) {
       const int i = pt.i(), j = pt.j();
 
       const double H = ice_thickness(i, j);
@@ -345,12 +347,11 @@ void EnthalpyModel::update_impl(double t, double dt, const Inputs &inputs) {
   m_stats.liquified_ice_volume = ((double) liquifiedCount) * dz * m_grid->cell_area();
 }
 
-void EnthalpyModel::define_model_state_impl(const File &output) const {
-  m_ice_enthalpy.define(output, io::PISM_DOUBLE);
-  m_basal_melt_rate.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> EnthalpyModel::state_impl() const {
+  return array::metadata({ &m_ice_enthalpy, &m_basal_melt_rate });
 }
 
-void EnthalpyModel::write_model_state_impl(const File &output) const {
+void EnthalpyModel::write_state_impl(const OutputFile &output) const {
   m_ice_enthalpy.write(output);
   m_basal_melt_rate.write(output);
 }

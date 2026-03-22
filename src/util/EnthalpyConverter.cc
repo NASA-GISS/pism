@@ -17,7 +17,7 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "pism/util/EnthalpyConverter.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 
 #include "pism/util/error_handling.hh"
 #include "pism/util/pism_utilities.hh"
@@ -64,7 +64,7 @@ EnthalpyConverter::EnthalpyConverter(const Config &config) {
   m_T_tolerance = config.get_number("enthalpy_converter.relaxed_is_temperate_tolerance"); // K
   m_T_0         = config.get_number("enthalpy_converter.T_reference"); // K
 
-  m_cold_mode = member(config.get_string("energy.model"), {"cold", "none"});
+  m_cold_mode = set_member(config.get_string("energy.model"), {"cold", "none"});
 }
 
 //! Return `true` if ice at `(E, P)` is temperate.

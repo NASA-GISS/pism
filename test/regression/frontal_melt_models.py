@@ -8,6 +8,7 @@ from PISM.util import convert
 import sys, os, numpy
 from unittest import TestCase
 import netCDF4
+from PISM.testing import filename as tmp_name
 
 config = PISM.Context().config
 
@@ -64,17 +65,19 @@ def create_grid():
     return PISM.Grid(ctx.ctx, params)
 
 def create_given_input_file(filename, grid, temperature, mass_flux):
-    PISM.util.prepare_output(filename)
+    output = PISM.util.prepare_output(filename)
 
     T = PISM.Scalar(grid, "shelfbtemp")
     T.set_attrs("climate", "shelf base temperature", "kelvin", "kelvin", "", 0)
     T.set(temperature)
-    T.write(filename)
+    output.define_variable(T.metadata())
+    T.write(output)
 
     M = PISM.Scalar(grid, "shelfbmassflux")
     M.set_attrs("climate", "shelf base mass flux", "kg m-2 s-1", "kg m-2 s-1", "", 0)
     M.set(mass_flux)
-    M.write(filename)
+    output.define_variable(M.metadata())
+    M.write(output)
 
 def check(vec, value):
     "Check if values of vec are almost equal to value."
@@ -83,29 +86,30 @@ def check(vec, value):
 def check_model(model, melt_rate):
     check(model.frontal_melt_rate(), melt_rate)
 
-def constant_test():
-    "Model Constant"
+class Constant(TestCase):
+    def test_constant(self):
+        "Model Constant"
 
-    # compute mass flux
-    melt_rate = config.get_number("frontal_melt.constant.melt_rate", "m second-1")
+        # compute mass flux
+        melt_rate = config.get_number("frontal_melt.constant.melt_rate", "m second-1")
 
-    grid = create_grid()
-    geometry = create_geometry(grid)
+        grid = create_grid()
+        geometry = create_geometry(grid)
 
-    inputs = PISM.FrontalMeltInputs()
-    water_flux = PISM.Scalar(grid, "water_flux")
-    water_flux.set(0.0)
-    inputs.geometry = geometry
-    inputs.subglacial_water_flux = water_flux
+        inputs = PISM.FrontalMeltInputs()
+        water_flux = PISM.Scalar(grid, "water_flux")
+        water_flux.set(0.0)
+        inputs.geometry = geometry
+        inputs.subglacial_water_flux = water_flux
 
-    model = PISM.FrontalMeltConstant(grid)
+        model = PISM.FrontalMeltConstant(grid)
 
-    model.init(geometry)
-    model.update(inputs, 0, 1)
+        model.init(geometry)
+        model.update(inputs, 0, 1)
 
-    check_model(model, melt_rate)
+        check_model(model, melt_rate)
 
-    assert model.max_timestep(0).infinite()
+        self.assertTrue(model.max_timestep(0).infinite())
 
 class DischargeRoutingTest(TestCase):
 
@@ -152,7 +156,7 @@ class DischargeRoutingTest(TestCase):
         self.inputs.geometry = self.geometry
         self.inputs.subglacial_water_flux = self.Qsg
 
-    def runTest(self):
+    def test_discharge_routing(self):
         "Model DischargeRouting"
 
         model = PISM.FrontalMeltDischargeRouting(self.grid)
@@ -167,21 +171,22 @@ class DischargeRoutingTest(TestCase):
 
         check_model(model, melt_rate)
 
-        assert model.max_timestep(0).infinite()
+        self.assertTrue(model.max_timestep(0).infinite())
 
     def tearDown(self):
         pass
 
-class GivenTest(TestCase):
+class Given(TestCase):
     def create_input(self, filename, melt_rate):
-        PISM.util.prepare_output(filename)
+        output = PISM.util.prepare_output(filename)
 
         Fmr = PISM.Scalar(self.grid, "frontal_melt_rate")
         Fmr.metadata(0).long_name("frontal melt rate").units("m / s")
 
         Fmr.set(melt_rate)
 
-        Fmr.write(filename)
+        output.define_variable(Fmr.metadata())
+        Fmr.write(output)
 
     def setUp(self):
 
@@ -190,7 +195,7 @@ class GivenTest(TestCase):
         self.grid = create_grid()
         self.geometry = create_geometry(self.grid)
 
-        self.filename = "given_input.nc"
+        self.filename = tmp_name("given_input.nc")
 
         self.create_input(self.filename, self.frontal_melt_rate)
 
@@ -203,7 +208,7 @@ class GivenTest(TestCase):
         self.inputs.geometry = self.geometry
         self.inputs.subglacial_water_flux = self.water_flux
 
-    def runTest(self):
+    def test_given(self):
         "Model Given"
 
         model = PISM.FrontalMeltGiven(self.grid)
@@ -211,7 +216,7 @@ class GivenTest(TestCase):
 
         model.update(self.inputs, 0, 1)
 
-        assert model.max_timestep(0).infinite()
+        self.assertTrue(model.max_timestep(0).infinite())
 
         check_model(model, self.frontal_melt_rate)
 
@@ -223,5 +228,5 @@ if __name__ == "__main__":
     t = DischargeRoutingTest()
 
     t.setUp()
-    t.runTest()
+    t.test_discharge_routing()
     t.tearDown()

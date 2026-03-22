@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2025 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -108,9 +108,6 @@ public:
 
   virtual ~BedThermalUnit() = default;
 
-  typedef std::shared_ptr<BedThermalUnit> Ptr;
-  typedef std::shared_ptr<const BedThermalUnit> ConstPtr;
-
   void init(const InputOptions &opts);
 
   //! Return the upward heat flux through the top surface of the bedrock thermal layer.
@@ -139,10 +136,10 @@ protected:
   virtual double depth_impl() const = 0;
   virtual unsigned int Mz_impl() const = 0;
 
-  virtual void define_model_state_impl(const File &output) const;
-  virtual void write_model_state_impl(const File &output) const;
+  virtual std::set<VariableMetadata> state_impl() const;
+  virtual void write_state_impl(const OutputFile &output) const;
 
-  virtual DiagnosticList diagnostics_impl() const;
+  virtual DiagnosticList spatial_diagnostics_impl() const;
 
   //! upward heat flux through the bottom surface of the bed thermal layer
   array::Scalar m_bottom_surface_flux;

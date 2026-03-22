@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2020, 2022, 2023, 2024 PISM Authors
+/* Copyright (C) 2016, 2017, 2020, 2022, 2023, 2024, 2025, 2026 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -25,6 +25,7 @@
 #include "pism/util/array/Vector.hh"
 #include "pism/util/pism_utilities.hh"
 #include "pism/util/Context.hh"
+#include <limits>
 #include <vector>
 
 namespace pism {
@@ -44,17 +45,26 @@ The maximum vertical velocity is computed but it does not affect the output.
  */
 CFLData max_timestep_cfl_3d(const array::Scalar &ice_thickness,
                             const array::CellType &cell_type,
+                            const array::Scalar1 *no_model_mask,
                             const array::Array3D &u3,
                             const array::Array3D &v3,
                             const array::Array3D &w3) {
 
   auto grid = ice_thickness.grid();
-  Config::ConstPtr config = grid->ctx()->config();
+  auto config = grid->ctx()->config();
 
   double dt_max = config->get_number("time_stepping.maximum_time_step", "seconds");
 
   array::AccessScope list{&ice_thickness, &u3, &v3, &w3, &cell_type};
 
+  bool has_no_model_mask;
+  if (no_model_mask != nullptr) {
+    has_no_model_mask = true;
+    list.add(*no_model_mask);
+  } else {
+    has_no_model_mask = false;
+  }
+  
   // update global max of abs of velocities for CFL; only velocities under surface
   const double
     one_over_dx = 1.0 / grid->dx(),
@@ -63,10 +73,17 @@ CFLData max_timestep_cfl_3d(const array::Scalar &ice_thickness,
   double u_max = 0.0, v_max = 0.0, w_max = 0.0;
   ParallelSection loop(grid->com);
   try {
-    for (auto p = grid->points(); p; p.next()) {
+    for (auto p : grid->points()) {
       const int i = p.i(), j = p.j();
 
-      if (cell_type.icy(i, j)) {
+      bool is_modeled = true;
+      if (has_no_model_mask) {
+        if ((*no_model_mask)(i, j) == 1) {
+          is_modeled = false;
+        }
+      }
+      
+      if ((cell_type.icy(i, j)) && is_modeled) {
         const int ks = grid->kBelowHeight(ice_thickness(i, j));
         const double
           *u = u3.get_column(i, j),
@@ -80,7 +97,9 @@ CFLData max_timestep_cfl_3d(const array::Scalar &ice_thickness,
           u_max = std::max(u_max, u_abs);
           v_max = std::max(v_max, v_abs);
           const double denom = fabs(u_abs * one_over_dx) + fabs(v_abs * one_over_dy);
-          if (denom > 0.0) {
+          // note: use std::numeric_limits<double>::min() to avoid FP overflow when
+          // computing the inverse in 1.0 / denom
+          if (denom > std::numeric_limits<double>::min()) {
             dt_max = std::min(dt_max, 1.0 / denom);
           }
         }
@@ -119,10 +138,11 @@ CFLData max_timestep_cfl_3d(const array::Scalar &ice_thickness,
  */
 CFLData max_timestep_cfl_2d(const array::Scalar &ice_thickness,
                             const array::CellType &cell_type,
+                            const array::Scalar1 *no_model_mask,
                             const array::Vector &velocity) {
 
   auto grid = ice_thickness.grid();
-  Config::ConstPtr config = grid->ctx()->config();
+  auto config = grid->ctx()->config();
 
   double dt_max = config->get_number("time_stepping.maximum_time_step", "seconds");
 
@@ -132,11 +152,26 @@ CFLData max_timestep_cfl_2d(const array::Scalar &ice_thickness,
 
   array::AccessScope list{&velocity, &cell_type};
 
+  bool has_no_model_mask;
+  if (no_model_mask != nullptr) {
+    has_no_model_mask = true;
+    list.add(*no_model_mask);
+  } else {
+    has_no_model_mask = false;
+  }
+  
   double u_max = 0.0, v_max = 0.0;
-  for (auto p = grid->points(); p; p.next()) {
+  for (auto p : grid->points()) {
     const int i = p.i(), j = p.j();
 
-    if (cell_type.icy(i, j)) {
+    bool is_modeled = true;
+    if (has_no_model_mask) {
+      if ((*no_model_mask)(i, j) == 1) {
+        is_modeled = false;
+      }
+    }
+      
+    if ((cell_type.icy(i, j)) && is_modeled) {
       const double
         u_abs = fabs(velocity(i, j).u),
         v_abs = fabs(velocity(i, j).v);
@@ -145,7 +180,7 @@ CFLData max_timestep_cfl_2d(const array::Scalar &ice_thickness,
       v_max = std::max(v_max, v_abs);
 
       const double denom = u_abs / dx + v_abs / dy;
-      if (denom > 0.0) {
+      if (denom > std::numeric_limits<double>::min()) {
         dt_max = std::min(dt_max, 1.0 / denom);
       }
     }

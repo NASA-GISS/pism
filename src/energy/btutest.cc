@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -16,6 +16,7 @@
 // along with PISM; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+#include <memory>
 #include <petsc.h>
 
 static char help[] =
@@ -23,21 +24,21 @@ static char help[] =
 
 #include "pism/util/pism_options.hh"
 #include "pism/util/Grid.hh"
-#include "pism/util/io/File.hh"
 #include "pism/verification/BTU_Verification.hh"
 #include "pism/energy/BTU_Minimal.hh"
 #include "pism/util/Time.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 
 #include "pism/verification/tests/exactTestK.h"
 
 #include "pism/util/petscwrappers/PetscInitializer.hh"
 #include "pism/util/error_handling.hh"
-#include "pism/util/io/io_helpers.hh"
 #include "pism/util/Context.hh"
 #include "pism/util/EnthalpyConverter.hh"
 #include "pism/util/MaxTimestep.hh"
 #include "pism/util/Logger.hh"
+#include "pism/util/io/SynchronousOutputWriter.hh"
+#include "pism/util/io/io_helpers.hh"
 
 //! Allocate the verification context. Uses ColdEnthalpyConverter.
 std::shared_ptr<pism::Context> btutest_context(MPI_Comm com, const std::string &prefix) {
@@ -47,10 +48,11 @@ std::shared_ptr<pism::Context> btutest_context(MPI_Comm com, const std::string &
   units::System::Ptr sys(new units::System);
 
   // logger
-  Logger::Ptr logger = logger_from_options(com);
+  auto logger = std::make_shared<Logger>(com, 1);
 
-  // configuration parameters
-  Config::Ptr config = config_from_options(com, *logger, sys);
+  auto config = config_from_options(com, sys);
+
+  logger->set_threshold(static_cast<int>(config->get_number("output.runtime.verbosity")));
 
   int Mx = 3;
   double Lx = 1500;
@@ -68,14 +70,14 @@ std::shared_ptr<pism::Context> btutest_context(MPI_Comm com, const std::string &
   config->set_string("time.start", "0s");
   config->set_number("time.run_length", 1.0);
 
-  set_config_from_options(sys, *config);
+  set_config_from_options(*config);
   config->resolve_filenames();
 
   print_config(*logger, 3, *config);
 
-  Time::Ptr time = std::make_shared<Time>(com, config, *logger, sys);
+  auto time = std::make_shared<Time>(com, config, *logger, sys);
 
-  EnthalpyConverter::Ptr EC = EnthalpyConverter::Ptr(new ColdEnthalpyConverter(*config));
+  std::shared_ptr<EnthalpyConverter> EC(new ColdEnthalpyConverter(*config));
 
   return std::shared_ptr<Context>(new Context(com, sys, config, EC, time, logger, prefix));
 }
@@ -91,7 +93,7 @@ int main(int argc, char *argv[]) {
 
   try {
     std::shared_ptr<Context> ctx = btutest_context(com, "pism_btutest");
-    Logger::Ptr log = ctx->log();
+    auto log = ctx->log();
 
     std::string usage =
       "  pism_btutest -Mbz NN -Lbz 1000.0 [-o OUT.nc -ys A -ye B -dt C -Mz D -Lz E]\n"
@@ -104,8 +106,7 @@ int main(int argc, char *argv[]) {
       "  -ye            end year in using Test K\n"
       "  -dt            time step B (= positive float) in years\n";
 
-    bool done = show_usage_check_req_opts(*log, "BTUTEST %s (test program for BedThermalUnit)",
-                                          {"-Mbz"}, usage);
+    bool done = maybe_show_usage(*log, "BTUTEST %s (test program for BedThermalUnit)", usage);
     if (done) {
       return 0;
     }
@@ -141,7 +142,7 @@ int main(int argc, char *argv[]) {
     // initialize BTU object:
     energy::BTUGrid bedrock_grid = energy::BTUGrid::FromOptions(ctx);
 
-    energy::BedThermalUnit::Ptr btu;
+    std::shared_ptr<energy::BedThermalUnit> btu;
 
     if (bedrock_grid.Mbz > 1) {
       btu.reset(new energy::BTU_Verification(grid, bedrock_grid, 'K', false));
@@ -175,7 +176,7 @@ int main(int argc, char *argv[]) {
       // compute exact ice temperature at z=0 at time y
       {
         array::AccessScope list(bedtoptemp);
-        for (auto p = grid->points(); p; p.next()) {
+        for (auto p : grid->points()) {
           const int i = p.i(), j = p.j();
 
           bedtoptemp(i,j) = exactK(time, 0.0, 0).T;
@@ -218,16 +219,23 @@ int main(int argc, char *argv[]) {
                  max_error, 100.0*max_error/FF, avg_error);
     log->message(1, "NUM ERRORS DONE\n");
 
-    File file(grid->com,
-              outname,
-              string_to_backend(config->get_string("output.format")),
-              io::PISM_READWRITE_MOVE);
+    auto writer = std::make_shared<SynchronousOutputWriter>(grid->com, *config);
+    writer->initialize({}, true);
 
-    io::define_time(file, *ctx);
-    io::append_time(file, *ctx->config(), ctx->time()->current());
+    // Write results to an output file:
+    OutputFile file(writer, outname);
 
-    btu->write_model_state(file);
+    file.define_variable(time->metadata());
+    file.append_time(time->current());
 
+    auto variables =
+        pism::combine(btu->state(), array::metadata({ &bedtoptemp, &heat_flux_at_ice_base }));
+
+    for (const auto &v : variables) {
+      file.define_variable(v);
+    }
+
+    btu->write_state(file);
     bedtoptemp.write(file);
     heat_flux_at_ice_base.write(file);
 

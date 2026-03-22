@@ -1,4 +1,4 @@
-// Copyright (C) 2008-2020, 2022, 2023 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2008-2020, 2022, 2023, 2025, 2026 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -24,10 +24,12 @@
 #include "pism/util/Grid.hh"
 #include "pism/util/pism_utilities.hh"
 #include "pism/util/VariableMetadata.hh"
-#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Config.hh"
 #include "pism/util/MaxTimestep.hh"
 #include "pism/util/Time.hh"
 #include "pism/util/Context.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 
@@ -40,7 +42,7 @@ InputOptions::InputOptions(InitializationType t, const std::string &file, unsign
 /*! Process command-line options -i and -bootstrap.
  *
  */
-InputOptions process_input_options(MPI_Comm com, Config::ConstPtr config) {
+InputOptions process_input_options(MPI_Comm com, std::shared_ptr<const Config> config) {
   InitializationType type = INIT_OTHER;
   unsigned int record     = 0;
 
@@ -86,19 +88,19 @@ Component::Component(std::shared_ptr<const Grid> g)
   // empty
 }
 
-DiagnosticList Component::diagnostics() const {
-  return this->diagnostics_impl();
+DiagnosticList Component::spatial_diagnostics() const {
+  return this->spatial_diagnostics_impl();
 }
 
-TSDiagnosticList Component::ts_diagnostics() const {
-  return this->ts_diagnostics_impl();
+TSDiagnosticList Component::scalar_diagnostics() const {
+  return this->scalar_diagnostics_impl();
 }
 
-DiagnosticList Component::diagnostics_impl() const {
+DiagnosticList Component::spatial_diagnostics_impl() const {
   return {};
 }
 
-TSDiagnosticList Component::ts_diagnostics_impl() const {
+TSDiagnosticList Component::scalar_diagnostics_impl() const {
   return {};
 }
 
@@ -114,30 +116,21 @@ const Profiling &Component::profiling() const {
   return m_grid->ctx()->profiling();
 }
 
-/*! @brief Define model state variables in an output file. */
-/*!
- * This is needed to allow defining all the variables in an output file before any data is written
- * (an optimization needed to get decent performance writing NetCDF-3).
- */
-void Component::define_model_state(const File &output) const {
-  this->define_model_state_impl(output);
-}
-
 /*! @brief Write model state variables to an output file. */
-void Component::write_model_state(const File &output) const {
-  // define variables, if needed (this is a no-op if they are already defined)
-  this->define_model_state(output);
+void Component::write_state(const OutputFile &output) const {
+  this->write_state_impl(output);
+}
 
-  this->write_model_state_impl(output);
+std::set<VariableMetadata> Component::state() const {
+  return state_impl();
+}
+
+std::set<VariableMetadata> Component::state_impl() const {
+  return {};
 }
 
 /*! @brief The default (empty implementation). */
-void Component::define_model_state_impl(const File &output) const {
-  (void) output;
-}
-
-/*! @brief The default (empty implementation). */
-void Component::write_model_state_impl(const File &output) const {
+void Component::write_state_impl(const OutputFile &output) const {
   (void) output;
 }
 
@@ -166,9 +159,9 @@ void Component::regrid(const std::string &module_name, array::Array &variable,
     return;
   }
 
-  SpatialVariableMetadata &m = variable.metadata();
+  auto &m = variable.metadata();
 
-  if (((not regrid_vars.empty()) and member(m["short_name"], regrid_vars)) or
+  if (((not regrid_vars.empty()) and set_member(m["short_name"], regrid_vars)) or
       (regrid_vars.empty() and flag == REGRID_WITHOUT_REGRID_VARS)) {
 
     m_log->message(2,

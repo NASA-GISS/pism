@@ -1,4 +1,4 @@
-/* Copyright (C) 2018, 2019, 2021, 2023 PISM Authors
+/* Copyright (C) 2018, 2019, 2021, 2023, 2025, 2026 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -22,6 +22,7 @@
 #include "pism/util/MaxTimestep.hh"
 
 #include "pism/util/pism_utilities.hh" // combine
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace ocean {
@@ -82,15 +83,16 @@ MaxTimestep SeaLevel::max_timestep_impl(double t) const {
   return MaxTimestep("sea level forcing");
 }
 
-void SeaLevel::define_model_state_impl(const File &output) const {
+std::set<VariableMetadata> SeaLevel::state_impl() const {
   if (m_input_model) {
-    m_input_model->define_model_state(output);
+    return m_input_model->state();
   }
+  return {};
 }
 
-void SeaLevel::write_model_state_impl(const File &output) const {
+void SeaLevel::write_state_impl(const OutputFile &output) const {
   if (m_input_model) {
-    m_input_model->write_model_state(output);
+    m_input_model->write_state(output);
   }
 }
 
@@ -100,7 +102,7 @@ namespace diagnostics {
 class SL : public Diag<SeaLevel> {
 public:
   SL(const SeaLevel *m) : Diag<SeaLevel>(m) {
-    m_vars = { { m_sys, "sea_level" } };
+    m_vars = { { m_sys, "sea_level", *m_grid } };
     m_vars[0].long_name("sea level elevation, relative to the geoid").units("meters");
   }
 
@@ -116,21 +118,21 @@ protected:
 
 } // end of namespace diagnostics
 
-DiagnosticList SeaLevel::diagnostics_impl() const {
+DiagnosticList SeaLevel::spatial_diagnostics_impl() const {
   DiagnosticList result = {
     {"sea_level", Diagnostic::Ptr(new diagnostics::SL(this))},
   };
 
   if (m_input_model) {
-    return combine(result, m_input_model->diagnostics());
+    return combine(result, m_input_model->spatial_diagnostics());
   } else {
     return result;
   }
 }
 
-TSDiagnosticList SeaLevel::ts_diagnostics_impl() const {
+TSDiagnosticList SeaLevel::scalar_diagnostics_impl() const {
   if (m_input_model) {
-    return m_input_model->ts_diagnostics();
+    return m_input_model->scalar_diagnostics();
   } else {
     return {};
   }

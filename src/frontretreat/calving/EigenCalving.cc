@@ -1,4 +1,4 @@
-/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023 PISM Authors
+/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -23,6 +23,7 @@
 #include "pism/util/error_handling.hh"
 #include "pism/util/array/CellType.hh"
 #include "pism/stressbalance/StressBalance.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace calving {
@@ -78,7 +79,7 @@ void EigenCalving::update(const array::CellType &cell_type,
   array::AccessScope list{&m_cell_type, &m_calving_rate, &m_strain_rates};
 
   // Compute the horizontal calving rate
-  for (auto pt = m_grid->points(); pt; pt.next()) {
+  for (auto pt : m_grid->points()) {
     const int i = pt.i(), j = pt.j();
 
     // Find partially filled or empty grid boxes on the icefree ocean, which
@@ -133,7 +134,7 @@ void EigenCalving::update(const array::CellType &cell_type,
   } // end of the loop over grid points
 }
 
-DiagnosticList EigenCalving::diagnostics_impl() const {
+DiagnosticList EigenCalving::spatial_diagnostics_impl() const {
   return {{"eigen_calving_rate", Diagnostic::wrap(m_calving_rate)}};
 }
 

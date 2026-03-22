@@ -1,4 +1,4 @@
-// Copyright (C) 2011--2024 PISM Authors
+// Copyright (C) 2011--2025 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -30,6 +30,8 @@
 #include "pism/util/array/CellType.hh"
 #include "pism/geometry/Geometry.hh"
 #include "pism/util/array/Forcing.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace surface {
@@ -290,7 +292,7 @@ void TemperatureIndex::update_impl(const Geometry &geometry, double t, double dt
 
   ParallelSection loop(m_grid->com);
   try {
-    for (auto p = m_grid->points(); p; p.next()) {
+    for (auto p : m_grid->points()) {
       const int i = p.i(), j = p.j();
 
       // the temperature time series from the AtmosphereModel and its modifiers
@@ -482,26 +484,26 @@ const array::Scalar& TemperatureIndex::air_temp_sd() const {
   return *m_air_temp_sd;
 }
 
-void TemperatureIndex::define_model_state_impl(const File &output) const {
-  SurfaceModel::define_model_state_impl(output);
-  m_firn_depth.define(output, io::PISM_DOUBLE);
-  m_snow_depth.define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> TemperatureIndex::state_impl() const {
+  auto variables = array::metadata({ &m_firn_depth, &m_snow_depth });
+
+  return pism::combine(variables, SurfaceModel::state_impl());
 }
 
-void TemperatureIndex::write_model_state_impl(const File &output) const {
-  SurfaceModel::write_model_state_impl(output);
+void TemperatureIndex::write_state_impl(const OutputFile &output) const {
+  SurfaceModel::write_state_impl(output);
   m_firn_depth.write(output);
   m_snow_depth.write(output);
 }
 
-DiagnosticList TemperatureIndex::diagnostics_impl() const {
+DiagnosticList TemperatureIndex::spatial_diagnostics_impl() const {
   DiagnosticList result = {
     {"air_temp_sd", Diagnostic::wrap(*m_air_temp_sd)},
     {"snow_depth",  Diagnostic::wrap(m_snow_depth)},
     {"firn_depth",  Diagnostic::wrap(m_firn_depth)},
   };
 
-  result = pism::combine(result, SurfaceModel::diagnostics_impl());
+  result = pism::combine(result, SurfaceModel::spatial_diagnostics_impl());
 
   return result;
 }

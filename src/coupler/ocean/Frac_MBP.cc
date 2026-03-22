@@ -1,4 +1,4 @@
-/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2023 PISM Authors
+/* Copyright (C) 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -20,6 +20,7 @@
 #include "pism/coupler/ocean/Frac_MBP.hh"
 #include "pism/geometry/Geometry.hh"
 #include "pism/util/ScalarForcing.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace ocean {
@@ -60,11 +61,13 @@ void Frac_MBP::init_impl(const Geometry &geometry) {
  *
  * `P_o^{*} = P_o + P_m`.
  */
-void Frac_MBP::update_impl(const Geometry &geometry, double t, double dt) {
-  m_input_model->update(geometry, t, dt);
+void Frac_MBP::update_impl(const Inputs &inputs, double t, double dt) {
+  m_input_model->update(inputs, t, dt);
 
   m_water_column_pressure->copy_from(m_input_model->average_water_column_pressure());
 
+  const auto &geometry = *inputs.geometry;
+  
   double
     lambda      = m_forcing->value(t + 0.5 * dt),
     ice_density = m_config->get_number("constants.ice.density"),
@@ -74,7 +77,7 @@ void Frac_MBP::update_impl(const Geometry &geometry, double t, double dt) {
 
   array::AccessScope list{&P_o, &geometry.ice_thickness};
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double

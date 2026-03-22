@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2022, 2023 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2022, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -125,11 +125,11 @@ protected:
 
   virtual void update_impl(double t, double dt, const Inputs &inputs) = 0;
 
-  virtual void define_model_state_impl(const File &output) const = 0;
-  virtual void write_model_state_impl(const File &output) const = 0;
+  virtual std::set<VariableMetadata> state_impl() const = 0;
+  virtual void write_state_impl(const OutputFile &output) const = 0;
 
-  virtual DiagnosticList diagnostics_impl() const;
-  virtual TSDiagnosticList ts_diagnostics_impl() const;
+  virtual DiagnosticList spatial_diagnostics_impl() const;
+  virtual TSDiagnosticList scalar_diagnostics_impl() const;
 
   /*! @brief Initialize enthalpy by reading it from a file, or by reading temperature and liquid
       water fraction, or by reading the temperature field alone. */

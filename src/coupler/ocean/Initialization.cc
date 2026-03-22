@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2021, 2023 PISM Authors
+/* Copyright (C) 2016, 2017, 2018, 2019, 2020, 2021, 2023, 2025 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -18,9 +18,10 @@
  */
 
 #include "pism/coupler/ocean/Initialization.hh"
-#include "pism/util/io/io_helpers.hh"
 #include "pism/util/io/File.hh"
 #include "pism/coupler/util/init_step.hh"
+#include "pism/util/Logger.hh"
+#include "pism/util/io/IO_Flags.hh"
 
 namespace pism {
 namespace ocean {
@@ -41,8 +42,8 @@ InitializationHelper::InitializationHelper(std::shared_ptr<const Grid> g, std::s
   m_shelf_base_mass_flux->metadata().output_units(units);
 }
 
-void InitializationHelper::update_impl(const Geometry &geometry, double t, double dt) {
-  OceanModel::update_impl(geometry, t, dt);
+void InitializationHelper::update_impl(const Inputs &inputs, double t, double dt) {
+  OceanModel::update_impl(inputs, t, dt);
 
   m_water_column_pressure->copy_from(m_input_model->average_water_column_pressure());
   m_shelf_base_temperature->copy_from(m_input_model->shelf_base_temperature());
@@ -70,7 +71,9 @@ void InitializationHelper::init_impl(const Geometry &geometry) {
   } else {
     m_log->message(2, "* Performing a 'fake' ocean model time-step for bootstrapping...\n");
 
-    init_step(this, geometry, time());
+    Inputs inputs;
+    inputs.geometry = &geometry;
+    init_step(this, inputs, time());
   }
 
   // Support regridding. This is needed to ensure that initialization using "-i" is equivalent to
@@ -85,20 +88,22 @@ void InitializationHelper::init_impl(const Geometry &geometry) {
   }
 }
 
-void InitializationHelper::define_model_state_impl(const File &output) const {
-  m_water_column_pressure->define(output, io::PISM_DOUBLE);
-  m_shelf_base_mass_flux->define(output, io::PISM_DOUBLE);
-  m_shelf_base_temperature->define(output, io::PISM_DOUBLE);
+std::set<VariableMetadata> InitializationHelper::state_impl() const {
+  auto variables = array::metadata({
+      m_water_column_pressure.get(),
+      m_shelf_base_mass_flux.get(),
+      m_shelf_base_temperature.get(),
+  });
 
-  m_input_model->define_model_state(output);
+  return pism::combine(variables, m_input_model->state());
 }
 
-void InitializationHelper::write_model_state_impl(const File &output) const {
+void InitializationHelper::write_state_impl(const OutputFile &output) const {
   m_water_column_pressure->write(output);
   m_shelf_base_mass_flux->write(output);
   m_shelf_base_temperature->write(output);
 
-  m_input_model->write_model_state(output);
+  m_input_model->write_state(output);
 }
 
 const array::Scalar& InitializationHelper::shelf_base_temperature_impl() const {

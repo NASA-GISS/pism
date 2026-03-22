@@ -1,4 +1,4 @@
-// Copyright (C) 2010--2018, 2021, 2022, 2024 Ed Bueler, Constantine Khroulev, and David Maxwell
+// Copyright (C) 2010--2018, 2021, 2022, 2024, 2025 Ed Bueler, Constantine Khroulev, and David Maxwell
 //
 // This file is part of PISM.
 //
@@ -33,7 +33,7 @@ static char help[] =
 
 #include "pism/stressbalance/ssa/SSAFD.hh"
 #include "pism/stressbalance/ssa/SSAFEM.hh"
-#include "pism/stressbalance/ssa/SSATestCase.hh"
+#include "pism/stressbalance/ssa/tests/SSATestCase.hh"
 #include "pism/util/Context.hh"
 #include "pism/util/error_handling.hh"
 #include "pism/util/petscwrappers/PetscInitializer.hh"
@@ -85,7 +85,7 @@ void SSATestCasePlug::initializeSSACoefficients() {
   array::AccessScope list{ &m_bc_values, &m_bc_mask, &m_geometry.bed_elevation,
                            &m_geometry.ice_surface_elevation };
 
-  for (auto p = m_grid->points(); p; p.next()) {
+  for (auto p : m_grid->points()) {
     const int i = p.i(), j = p.j();
 
     double myu, myv;
@@ -137,14 +137,14 @@ int main(int argc, char *argv[]) {
   /* This explicit scoping forces destructors to be called before PetscFinalize() */
   try {
     std::shared_ptr<Context> ctx = context_from_options(com, "ssa_test_plug");
-    Config::Ptr config           = ctx->config();
+    auto config           = ctx->config();
 
     std::string usage = "\n"
                         "usage of SSA_TEST_PLUG:\n"
                         "  run ssa_test_plug -Mx <number> -My <number> -ssa_method <fd|fem>\n"
                         "\n";
 
-    bool stop = show_usage_check_req_opts(*ctx->log(), "ssa_test_plug", {}, usage);
+    bool stop = maybe_show_usage(*ctx->log(), "ssa_test_plug", usage);
 
     if (stop) {
       return 0;

@@ -27,7 +27,7 @@ static char help[] =
 #include "pism/icemodel/IceModel.hh"
 #include "pism/icemodel/IceEISModel.hh"
 #include "pism/verification/iceCompModel.hh"
-#include "pism/util/Config.hh"
+#include "pism/util/NetCDFConfig.hh"
 #include "pism/util/Grid.hh"
 
 #include "pism/util/Context.hh"
@@ -82,22 +82,84 @@ static void set_config_defaults(Config &config) {
 
 namespace verification {
 
+void set_config_defaults(Config &config, char testname) {
+  // This sets the defaults for each test; command-line options can override this.
+
+  config.set_number("grid.Mx", 61);
+  config.set_number("grid.My", 61);
+  config.set_number("grid.Lx", 1); // in km
+  config.set_number("grid.Ly", 1); // in km
+
+  // use the cell corner grid registration
+  config.set_string("grid.registration", "corner");
+
+  // use the non-periodic grid:
+  config.set_string("grid.periodicity", "none");
+
+  // quadratic spacing is the default
+  config.set_string("grid.ice_vertical_spacing", "quadratic");
+
+  switch (testname) {
+  case 'A':
+  case 'B':
+  case 'H':
+    // use 2400km by 2400km by 4000m rectangular domain
+    config.set_number("grid.Lx", 1200); // in km
+    config.set_number("grid.Ly", 1200); // in km
+    config.set_number("grid.Lz", 4000); // in m
+    break;
+  case 'C':
+  case 'D':
+    // use 2000km by 2000km by 4000m rectangular domain
+    config.set_number("grid.Lx", 1000); // in km
+    config.set_number("grid.Ly", 1000); // in km
+    config.set_number("grid.Lz", 4000); // in m
+    break;
+  case 'F':
+  case 'G':
+  case 'L':
+    // use 1800km by 1800km by 4000m rectangular domain
+    config.set_number("grid.Lx", 900); // in km
+    config.set_number("grid.Ly", 900); // in km
+    config.set_number("grid.Lz", 4000); // in m
+    break;
+  case 'K':
+  case 'O':
+    // use 2000km by 2000km by 4000m rectangular domain, but make truely periodic
+    config.set_number("grid.Mbz", 2);
+    config.set_number("grid.Lbz", 1000); // in m
+    config.set_number("grid.Lx", 1000); // in km
+    config.set_number("grid.Ly", 1000); // in km
+    config.set_number("grid.Lz", 4000); // in m
+    config.set_string("grid.periodicity", "xy");
+    break;
+  case 'V':
+    config.set_number("grid.My", 3);// it's a flow-line setup
+    config.set_number("grid.Lx", 500); // 500 km long
+    config.set_string("grid.periodicity", "y");
+    break;
+  default:
+    throw RuntimeError(PISM_ERROR_LOCATION, "desired test not implemented\n");
+  }
+}
+
 //! Allocate the verification mode context. Uses ColdEnthalpyConverter.
-std::shared_ptr<Context> context(MPI_Comm com, const std::string &prefix) {
+std::shared_ptr<Context> context(MPI_Comm com, const std::string &prefix,
+                                 char testname) {
   // unit system
   auto sys = std::make_shared<units::System>();
 
   // logger
-  auto logger = logger_from_options(com);
+  auto logger = std::make_shared<Logger>(com, 1);
 
   // configuration parameters
-  auto config = config_from_options(com, *logger, sys);
+  auto config = config_from_options(com, sys);
 
-  config->set_string("grid.periodicity", "none");
-  config->set_string("grid.registration", "corner");
-
-  set_config_from_options(sys, *config);
+  set_config_defaults(*config, testname);
+  set_config_from_options(*config);
   config->resolve_filenames();
+
+  logger->set_threshold(static_cast<int>(config->get_number("output.runtime.verbosity")));
 
   print_config(*logger, 3, *config);
 
@@ -108,72 +170,7 @@ std::shared_ptr<Context> context(MPI_Comm com, const std::string &prefix) {
   return std::make_shared<Context>(com, sys, config, EC, time, logger, prefix);
 }
 
-grid::Parameters grid_defaults(Config::Ptr config, char testname) {
-  // This sets the defaults for each test; command-line options can override this.
-
-  int Mx = 61, My = 61;
-  double Lx = 1e3, Ly = 1e3;
-  grid::Parameters P(*config, Mx, My, Lx, Ly);
-
-  // use the cell corner grid registration
-  P.registration = pism::grid::CELL_CORNER;
-  // use the non-periodic grid:
-  P.periodicity = pism::grid::NOT_PERIODIC;
-
-  // equal spacing is the default for all the tests except K
-  auto spacing    = pism::grid::EQUAL;
-  double Lz       = config->get_number("grid.Lz");
-  unsigned int Mz = config->get_number("grid.Mz");
-
-  switch (testname) {
-  case 'A':
-  case 'B':
-  case 'H':
-    // use 2400km by 2400km by 4000m rectangular domain
-    P.Lx = 1200e3;
-    P.Ly = P.Lx;
-    Lz   = 4000;
-    break;
-  case 'C':
-  case 'D':
-    // use 2000km by 2000km by 4000m rectangular domain
-    P.Lx = 1000e3;
-    P.Ly = P.Lx;
-    Lz   = 4000;
-    break;
-  case 'F':
-  case 'G':
-  case 'L':
-    // use 1800km by 1800km by 4000m rectangular domain
-    P.Lx = 900e3;
-    P.Ly = P.Lx;
-    Lz   = 4000;
-    break;
-  case 'K':
-  case 'O':
-    // use 2000km by 2000km by 4000m rectangular domain, but make truely periodic
-    config->set_number("grid.Mbz", 2);
-    config->set_number("grid.Lbz", 1000);
-    P.Lx          = 1000e3;
-    P.Ly          = P.Lx;
-    Lz            = 4000;
-    P.periodicity = pism::grid::XY_PERIODIC;
-    spacing       = pism::grid::QUADRATIC;
-    break;
-  case 'V':
-    P.My          = 3;     // it's a flow-line setup
-    P.Lx          = 500e3; // 500 km long
-    P.periodicity = pism::grid::Y_PERIODIC;
-    break;
-  default:
-    throw RuntimeError(PISM_ERROR_LOCATION, "desired test not implemented\n");
-  }
-
-  P.z = grid::compute_vertical_levels(Lz, Mz, spacing, config->get_number("grid.lambda"));
-  return P;
-}
-
-std::shared_ptr<Grid> grid(std::shared_ptr<Context> ctx, char testname) {
+std::shared_ptr<Grid> grid(std::shared_ptr<Context> ctx) {
   auto config = ctx->config();
 
   auto input_file_name = config->get_string("input.file");
@@ -191,14 +188,7 @@ std::shared_ptr<Grid> grid(std::shared_ptr<Context> ctx, char testname) {
     return Grid::FromFile(ctx, input_file, { "enthalpy", "temp" }, r);
   }
 
-  // use defaults set by grid_defaults()
-  auto P = grid_defaults(config, testname);
-
-  P.horizontal_size_and_extent_from_options(*config);
-  P.vertical_grid_from_options(*config);
-  P.ownership_ranges_from_options(*config, ctx->size());
-
-  return std::make_shared<Grid>(ctx, P);
+  return Grid::FromOptions(ctx);
 }
 } // namespace verification
 
@@ -225,31 +215,43 @@ int main(int argc, char *argv[]) {
 
     std::shared_ptr<Context> ctx;
     if (verification_test.is_set()) {
-      ctx = verification::context(com, "pism");
+      char test = verification_test.value()[0];
+      ctx = verification::context(com, "pism", test);
     } else {
-      ctx = context_from_options(com, "pism", false);
+      ctx = context_from_options(com, "pism");
     }
 
-    Logger::Ptr log = ctx->log();
-    Config::Ptr config = ctx->config();
+    auto log = ctx->log();
+    auto config = ctx->config();
 
-    std::vector<std::string> required_options{};
     if (eisII.is_set()) {
       // set defaults:
       eismint2::set_config_defaults(*config);
 
       // process -config_override
-      DefaultConfig::Ptr overrides(new DefaultConfig(com,
-                                                     "pism_overrides",
-                                                     "-config_override",
-                                                     ctx->unit_system()));
-      overrides->init(*ctx->log());
-      config->import_from(*overrides);
+      auto overrides = std::make_shared<NetCDFConfig>("pism_overrides", ctx->unit_system());
+
+      options::String override_filename("-config_override", "Config override file name");
+
+      if (override_filename.is_set()) {
+        overrides->read(com, override_filename);
+        config->import_from(*overrides);
+      }
+
       // process command-line options
-      set_config_from_options(ctx->unit_system(), *config);
+      set_config_from_options(*config);
       config->resolve_filenames();
-    } else if (not verification_test.is_set()) {
-      required_options.emplace_back("-i");
+    }
+
+    if (options::Bool("-version", "print PISM version and stop")) {
+      log->message(1, pism::version());
+      return 0;
+    }
+
+    if (not(verification_test.is_set() or eisII.is_set()) and
+        config->get_string("input.file").empty()) {
+      throw RuntimeError(PISM_ERROR_LOCATION,
+                         "Configuration parameter 'input.file' cannot be empty");
     }
 
     print_config(*ctx->log(), 3, *config);
@@ -266,8 +268,7 @@ int main(int argc, char *argv[]) {
       "  * option -i is required\n"
       "  * if -bootstrap is used then also '-Mx A -My B -Mz C -Lz D' are required\n";
     {
-      bool done = show_usage_check_req_opts(*log, "PISM (basic evolution run mode)" ,
-                                            required_options, usage);
+      bool done = maybe_show_usage(*log, "PISM (basic evolution run mode)", usage);
       if (done) {
         return 0;
       }
@@ -286,7 +287,7 @@ int main(int argc, char *argv[]) {
 
     if (verification_test.is_set()) {
       char test = verification_test.value()[0];
-      grid = verification::grid(ctx, test);
+      grid = verification::grid(ctx);
 
       verification_model = std::make_shared<IceCompModel>(grid, ctx, test);
       model = verification_model;
@@ -304,16 +305,28 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    model->init();
-
     auto list_type = options::Keyword("-list_diagnostics",
                                       "List available diagnostic quantities and stop.",
                                       "all,spatial,scalar,json",
                                       "all");
 
     if (list_type.is_set()) {
-      model->list_diagnostics(list_type);
+      auto report = DIAG_NONE;
+      auto value = list_type.value();
+      if (value == "spatial") {
+        report = DIAG_SPATIAL;
+      } else if (value == "scalar") {
+        report = DIAG_SCALAR;
+      } else if (value == "json") {
+        report = DIAG_JSON;
+      } else {
+        report = DIAG_ALL;
+      }
+      model->init(report);
+
     } else {
+      model->init(DIAG_NONE);
+
       auto termination_reason = model->run();
 
       switch (termination_reason) {
@@ -325,14 +338,10 @@ int main(int argc, char *argv[]) {
           break;
         }
       case PISM_SIGNAL:
-        {
-          exit_code = 0;
-          break;
-        }
       case PISM_DONE:
         {
           log->message(2, "... done with the run\n");
-          model->save_results();
+          model->write_final_output();
           exit_code = 0;
 
           if (verification_model and
