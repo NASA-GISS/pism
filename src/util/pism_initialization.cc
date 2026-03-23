@@ -34,6 +34,9 @@ extern "C" {
 
 namespace pism {
 
+//! true if PISM should finalize PETSc, false otherwise
+static bool s_pism_finalize_petsc = false;
+
 //! true if PISM should finalize MPI, false otherwise
 static bool s_pism_finalize_mpi = false;
 
@@ -62,6 +65,13 @@ void initialize(int argc, char **argv, const char *help) {
     }
   }
 
+  PetscBool petsc_initialized = PETSC_FALSE;
+  {
+    PetscErrorCode ierr = PetscInitialized(&petsc_initialized);
+    PISM_CHK(ierr, "PetscInitialized");
+  }
+
+
 #if (Pism_USE_YAC == 1)
   // YAXT
   {
@@ -85,7 +95,12 @@ void initialize(int argc, char **argv, const char *help) {
     yac_cdef_datetime(start_datetime, end_datetime);
 
     yac_cdef_comp("pism", &yac_comp_id);
-    yac_cget_comp_comm(yac_comp_id, &PETSC_COMM_WORLD);
+
+    // make sure we don't mess with PETSC_COMM_WORLD if someone else initialized PETSc
+    // already:
+    if (petsc_initialized == PETSC_FALSE) {
+      yac_cget_comp_comm(yac_comp_id, &PETSC_COMM_WORLD);
+    }
 
     s_pism_yac_initialized = true;
   }
@@ -93,18 +108,17 @@ void initialize(int argc, char **argv, const char *help) {
 
   // PETSc
   {
-    PetscBool initialized = PETSC_FALSE;
-    PetscErrorCode ierr   = PetscInitialized(&initialized);
-    PISM_CHK(ierr, "PetscInitialized");
-
-    if (initialized == PETSC_FALSE) {
-      ierr = PetscInitialize(&argc, &argv, NULL, help);
+    if (petsc_initialized == PETSC_FALSE) {
+      PetscErrorCode ierr = PetscInitialize(&argc, &argv, NULL, help);
       PISM_CHK(ierr, "PetscInitialize");
 
       if (ierr != 0) {
         printf("PETSc initialization failed. Aborting...\n");
         MPI_Abort(MPI_COMM_WORLD, -1);
       }
+      s_pism_finalize_petsc = true;
+    } else {
+      s_pism_finalize_petsc = false;
     }
   }
 }
@@ -136,7 +150,7 @@ void finalize() {
     PetscErrorCode ierr         = PetscInitialized(&petsc_initialized);
     CHKERRCONTINUE(ierr);
 
-    if (petsc_initialized == PETSC_TRUE) {
+    if (petsc_initialized == PETSC_TRUE and s_pism_finalize_petsc) {
       // there is nothing we can do if this fails
       ierr = PetscFinalize();
       CHKERRCONTINUE(ierr);
