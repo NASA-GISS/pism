@@ -25,6 +25,7 @@ import numpy as np
 import json
 from mpi4py import MPI
 from enum import Enum
+import traceback
 
 logger = logging.getLogger("pism_output")
 
@@ -517,3 +518,4 @@ if __name__ == "__main__":
         main(options.compression)
     except Exception as e:
         logger.critical(f"ERROR: {e}")
+        traceback.print_exc()
