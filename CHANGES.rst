@@ -1,5 +1,15 @@
 .. default-role:: literal
 
+Changes from 2.3.1 to 2.3.2
+===========================
+
+- Improve code initializing `YacOutputWriter`.
+- Fix a bug in `YacOutputWriter::define_yac_grid()` that resulted in a crash when PISM is
+  built with MPICH.
+- Update PnetCDF version in the build script to 1.14.1 to support GCC 15 and newer. 
+- Another attempt to fix tagging of Docker images uploaded to the GitHub Container
+  Registry.
+
 Changes from 2.3.0 to 2.3.1
 ===========================
 
