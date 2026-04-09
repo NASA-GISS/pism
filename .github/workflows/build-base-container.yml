@@ -48,6 +48,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: docker/pism/base/
+          target: pism-runtime
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-runtime.outputs.tags }}
           labels: ${{ steps.meta-runtime.outputs.labels }}
@@ -72,6 +73,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: docker/pism/base/
+          target: pism-base
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-base.outputs.tags }}
           labels: ${{ steps.meta-base.outputs.labels }}
